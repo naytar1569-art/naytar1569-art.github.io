@@ -355,13 +355,14 @@ header {
 
 /* ── App Content ──────────────────────────────────────────── */
 .overview-bar {
-  background: white;
+  background: #ffffff;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  color: #111827;
 }
 
 .date-label {
@@ -370,18 +371,21 @@ header {
   gap: 8px;
   font-size: 0.9rem;
   font-weight: 500;
+  color: #111827;
 }
 
 .date-label span:first-child { font-size: 1.2rem; }
 
-.date-text { color: var(--text-muted); }
+.date-text { color: #6b7280; }
 
 .date-label input {
   padding: 6px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid #e5e7eb;
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
   min-width: 140px;
+  background: #ffffff;
+  color: #111827;
 }
 
 .overview-actions {
@@ -391,8 +395,8 @@ header {
 }
 
 .save-btn {
-  background: var(--success);
-  color: white;
+  background: #16a34a;
+  color: #ffffff;
   padding: 10px 16px;
   font-size: 0.9rem;
   font-weight: 600;
@@ -404,14 +408,47 @@ header {
 
 .save-btn:hover { background: #15803d; }
 
+/* ── Loading Indicator ────────────────────────────────────── */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #6b7280;
+  background: #ffffff;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-indicator p {
+  font-size: 1rem;
+  margin: 0;
+  color: #6b7280;
+}
+
 /* ── Category View ────────────────────────────────────────── */
 .cat-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   padding: 20px;
-  background: white;
-  border-bottom: 1px solid var(--border);
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  color: #111827;
 }
 
 .cat-title {
@@ -421,17 +458,18 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: #111827;
 }
 
 .cat-count {
-  color: var(--text-muted);
+  color: #6b7280;
   font-size: 0.9rem;
   margin: 0;
 }
 
 .add-item-btn {
-  background: var(--primary);
-  color: white;
+  background: #2563eb;
+  color: #ffffff;
   padding: 8px 14px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -441,7 +479,7 @@ header {
   gap: 4px;
 }
 
-.add-item-btn:hover { background: var(--primary-dark); }
+.add-item-btn:hover { background: #1d4ed8; }
 
 /* ── Add Item Form ────────────────────────────────────────── */
 .add-item-form {
@@ -489,19 +527,21 @@ header {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
   padding: 20px;
+  background: #f8fafc;
 }
 
 .item-card {
-  background: white;
-  border-radius: var(--radius);
+  background: #ffffff;
+  border-radius: 16px;
   padding: 20px;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgba(15,23,42,0.08);
+  border: 1px solid #e5e7eb;
   transition: box-shadow 0.2s, transform 0.1s;
+  color: #111827;
 }
 
 .item-card:hover {
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 8px 32px rgba(15,23,42,0.12);
   transform: translateY(-2px);
 }
 
@@ -518,11 +558,12 @@ header {
   margin: 0;
   flex: 1;
   min-width: 0;
+  color: #111827;
 }
 
 .item-edit-btn {
   background: transparent;
-  color: var(--text-muted);
+  color: #6b7280;
   padding: 4px;
   font-size: 0.9rem;
   border-radius: var(--radius-sm);
@@ -531,8 +572,8 @@ header {
 }
 
 .item-edit-btn:hover {
-  background: var(--bg);
-  color: var(--text);
+  background: #f1f5f9;
+  color: #111827;
 }
 
 .item-controls {
@@ -546,8 +587,8 @@ header {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--border);
-  color: var(--text);
+  background: #e5e7eb;
+  color: #111827;
   font-size: 1.2rem;
   font-weight: 600;
   display: flex;
@@ -557,16 +598,16 @@ header {
 }
 
 .qty-btn:hover {
-  background: var(--text-muted);
-  color: white;
+  background: #6b7280;
+  color: #ffffff;
   transform: scale(1.05);
 }
 
 .qty-btn:active { transform: scale(0.95); }
 
-.minus-btn:hover { background: var(--danger); }
+.minus-btn:hover { background: #dc2626; }
 
-.plus-btn:hover { background: var(--success); }
+.plus-btn:hover { background: #16a34a; }
 
 .qty-display {
   display: flex;
@@ -578,20 +619,20 @@ header {
 .qty-value {
   font-size: 1.4rem;
   font-weight: 700;
-  color: var(--primary);
+  color: #2563eb;
   line-height: 1;
 }
 
 .qty-unit {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: #6b7280;
   font-weight: 500;
 }
 
 .item-delete-btn {
   width: 100%;
-  background: var(--danger-light);
-  color: var(--danger);
+  background: #fee2e2;
+  color: #dc2626;
   padding: 8px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -603,15 +644,16 @@ header {
 }
 
 .item-delete-btn:hover {
-  background: var(--danger);
-  color: white;
+  background: #dc2626;
+  color: #ffffff;
 }
 
 /* ── Empty State ──────────────────────────────────────────── */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: var(--text-muted);
+  color: #6b7280;
+  background: #ffffff;
 }
 
 .empty-icon {
@@ -623,11 +665,13 @@ header {
 .empty-state p {
   font-size: 1rem;
   margin: 0 0 8px 0;
+  color: #6b7280;
 }
 
 .empty-state p:last-child {
   font-size: 0.9rem;
   opacity: 0.8;
+  color: #9ca3af;
 }
 
 /* ── Toast Notifications ──────────────────────────────────── */

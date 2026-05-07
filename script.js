@@ -106,18 +106,28 @@ function showLogin() {
 }
 
 function showApp() {
+  console.log('showApp() called');
   el('loginOverlay').classList.add('hidden');
   el('appHeader').classList.remove('hidden');
   el('categoryNav').classList.remove('hidden');
   el('appContent').classList.remove('hidden');
+
+  // Show loading indicator
+  const loadingIndicator = el('loadingIndicator');
+  const categoryView = el('categoryView');
+  if (loadingIndicator) loadingIndicator.style.display = 'flex';
+  if (categoryView) categoryView.style.display = 'none';
 
   el('userName').textContent = currentUser.name;
   const badge = el('roleLabel');
   badge.textContent = currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
   badge.className   = `role-badge ${currentUser.role}`;
 
+  console.log('User info set:', currentUser);
+
   // Load stock data if not loaded yet
   if (Object.keys(stockData).length === 0) {
+    console.log('Loading stock data...');
     loadStock();
   }
 
@@ -125,16 +135,29 @@ function showApp() {
   const today = new Date().toISOString().split('T')[0];
   el('reportDate').value = today;
 
+  console.log('Rendering tabs and category...');
   renderTabs();
   renderCategory();
 
-  // Setup additional event listeners after rendering
-  setupAdditionalEventListeners();
+  // Hide loading indicator and show content after rendering
+  setTimeout(() => {
+    if (loadingIndicator) loadingIndicator.style.display = 'none';
+    if (categoryView) categoryView.style.display = 'block';
+    setupAdditionalEventListeners();
+  }, 100);
+
+  console.log('showApp() completed');
 }
 
 // ── Tabs ─────────────────────────────────────────────────────────
 function renderTabs() {
+  console.log('renderTabs() called');
   const track = el('categoryTabs');
+  if (!track) {
+    console.error('categoryTabs element not found');
+    return;
+  }
+
   track.innerHTML = '';
   CATEGORIES.forEach(cat => {
     const count = (stockData[cat.id] || []).length;
@@ -145,19 +168,29 @@ function renderTabs() {
     btn.addEventListener('click', () => { currentCategoryId = cat.id; renderTabs(); renderCategory(); });
     track.appendChild(btn);
   });
+  console.log('renderTabs() completed');
 }
 
 // ── Category View ─────────────────────────────────────────────────
 function renderCategory() {
+  console.log('renderCategory() called for category:', currentCategoryId);
   const container = el('categoryView');
-  if (!container) return;
+  if (!container) {
+    console.error('categoryView element not found');
+    return;
+  }
 
   container.innerHTML = '';
   const cat     = CATEGORIES.find(c => c.id === currentCategoryId);
-  if (!cat) return;
+  if (!cat) {
+    console.error('Category not found:', currentCategoryId);
+    return;
+  }
 
   const items   = stockData[currentCategoryId] || [];
   const isAdmin = currentUser?.role === 'admin';
+
+  console.log('Rendering category:', cat.name, 'with', items.length, 'items');
 
   const header = document.createElement('div');
   header.className = 'cat-header';
@@ -188,6 +221,7 @@ function renderCategory() {
   }
 
   if (items.length === 0) {
+    console.log('No items in category, showing empty state');
     const empty = document.createElement('div');
     empty.className = 'empty-state';
     empty.innerHTML = `
@@ -197,6 +231,7 @@ function renderCategory() {
     `;
     container.appendChild(empty);
   } else {
+    console.log('Rendering', items.length, 'items');
     const grid = document.createElement('div');
     grid.className = 'items-grid';
     items.forEach(item => {
@@ -226,6 +261,8 @@ function renderCategory() {
   setTimeout(() => {
     setupCategoryEventListeners();
   }, 0);
+
+  console.log('renderCategory() completed');
 }
 
 function setupCategoryEventListeners() {
