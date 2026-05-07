@@ -483,9 +483,9 @@ header {
 
 /* ── Add Item Form ────────────────────────────────────────── */
 .add-item-form {
-  background: var(--bg);
+  background: #f1f5f9;
   padding: 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .form-row {
@@ -505,14 +505,14 @@ header {
 
 .form-row input {
   padding: 10px 12px;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
   font-size: 0.95rem;
 }
 
 .form-row input:focus {
   outline: none;
-  border-color: var(--primary);
+  border-color: #2563eb;
 }
 
 .form-actions {
@@ -684,11 +684,11 @@ header {
 }
 
 .toast {
-  background: var(--card);
-  color: var(--text);
+  background: #ffffff;
+  color: #111827;
   padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-lg);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(15,23,42,0.12);
   margin-bottom: 8px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -696,8 +696,9 @@ header {
   transform: translateX(100%);
   transition: all 0.3s ease;
   pointer-events: auto;
-  border-left: 4px solid var(--primary);
+  border-left: 4px solid #2563eb;
   max-width: 320px;
+}
 }
 
 .toast.visible {
@@ -705,8 +706,8 @@ header {
   transform: translateX(0);
 }
 
-.toast-success { border-left-color: var(--success); }
-.toast-error { border-left-color: var(--danger); }
+.toast-success { border-left-color: #16a34a; }
+.toast-error { border-left-color: #dc2626; }
 .toast-warning { border-left-color: #d97706; }
 
 /* ── Responsive Design ────────────────────────────────────── */
