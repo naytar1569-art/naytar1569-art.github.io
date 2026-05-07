@@ -1,20 +1,9 @@
 // ============================================================
 //  LamthongBBQ Stock Management System
-//  Auth: Firebase (Google Sign-In)
-//  Email: Gmail API via OAuth access token
 // ============================================================
 
-const FIREBASE_CONFIG = {
-  projectId:         "lamthong-bbq-2025",
-  appId:             "1:202910034130:web:834d18faa8f1d88ac2650b",
-  storageBucket:     "lamthong-bbq-2025.firebasestorage.app",
-  apiKey:            "AIzaSyBV8Bzeg1lZB-4yFzTXO9ML2d1249QwtTA",
-  authDomain:        "lamthong-bbq-2025.firebaseapp.com",
-  messagingSenderId: "202910034130",
-  measurementId:     "G-CBL6WVH329",
-};
-
-const ADMIN_EMAIL = 'naytar1569@gmail.com';
+const GOOGLE_CLIENT_ID = '395886691537-a60irjuj5ck27c230lha0ns81rbjqu49.apps.googleusercontent.com';
+const ADMIN_EMAIL      = 'naytar1569@gmail.com';
 
 const CATEGORIES = [
   { id: 'meat',    name: 'เนื้อสัตว์' },
@@ -23,19 +12,12 @@ const CATEGORIES = [
   { id: 'general', name: 'ของใช้ทั่วไป' },
 ];
 
-// ── State ──────────────────────────────────────────────────────
+// ── State ───────────────────────────────────────────────────────
 let currentUser       = null;
 let currentCategoryId = CATEGORIES[0].id;
 let stockData         = {};
 let editingItemId     = null;
-let gmailToken        = null;   // OAuth access token for Gmail API
-
-// ── Firebase ────────────────────────────────────────────────────
-firebase.initializeApp(FIREBASE_CONFIG);
-const auth           = firebase.auth();
-const googleProvider = new firebase.auth.GoogleAuthProvider();
-googleProvider.addScope('https://www.googleapis.com/auth/gmail.send');
-googleProvider.setCustomParameters({ login_hint: ADMIN_EMAIL });
+let tokenClient       = null;
 
 // ── Helpers ─────────────────────────────────────────────────────
 const el = id => document.getElementById(id);
@@ -53,11 +35,11 @@ function base64EncodeUTF8(str) {
 }
 
 function showToast(msg, type = 'info', duration = 3500) {
-  const c = el('toastContainer');
-  const t = document.createElement('div');
-  t.className = `toast toast-${type}`;
+  const wrap = el('toastContainer');
+  const t    = document.createElement('div');
+  t.className   = `toast toast-${type}`;
   t.textContent = msg;
-  c.appendChild(t);
+  wrap.appendChild(t);
   requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('visible')));
   setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 350); }, duration);
 }
@@ -77,60 +59,43 @@ function loadStock() {
 
 function saveStock() { localStorage.setItem('bbqStock_v2', JSON.stringify(stockData)); }
 
-function loadStaff() {
-  try { return JSON.parse(localStorage.getItem('bbqStaff') || '[]'); } catch { return []; }
-}
-function saveStaff(list) { localStorage.setItem('bbqStaff', JSON.stringify(list)); }
+function loadStaff()       { try { return JSON.parse(localStorage.getItem('bbqStaff') || '[]'); } catch { return []; } }
+function saveStaff(list)   { localStorage.setItem('bbqStaff', JSON.stringify(list)); }
 
 // ── Auth & Roles ─────────────────────────────────────────────────
+function parseJwt(token) {
+  try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
+}
+
 function getRole(email) {
   if (!email) return null;
   if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return 'admin';
-  const staff = loadStaff();
-  if (staff.map(e => e.toLowerCase()).includes(email.toLowerCase())) return 'employee';
+  if (loadStaff().map(e => e.toLowerCase()).includes(email.toLowerCase())) return 'employee';
   return null;
 }
 
-function handleFirebaseUser(firebaseUser, accessToken) {
-  if (!firebaseUser) { showLogin(); return; }
-  const email = (firebaseUser.email || '').toLowerCase();
-  const role  = getRole(email);
-  if (!role) { showUnauthorized(email); auth.signOut(); return; }
+function handleSignIn(credentialResponse) {
+  const payload = parseJwt(credentialResponse.credential);
+  if (!payload) { showToast('ไม่สามารถอ่านข้อมูลจาก Google ได้', 'error'); return; }
 
-  if (accessToken) gmailToken = accessToken;
+  const email = (payload.email || '').toLowerCase();
+  const role  = getRole(email);
+  if (!role) { showUnauthorized(email); return; }
 
   currentUser = {
     email,
-    name:    firebaseUser.displayName || email,
-    picture: firebaseUser.photoURL    || '',
+    name:    payload.name    || email,
+    picture: payload.picture || '',
     role,
   };
+  sessionStorage.setItem('bbqUser', JSON.stringify(currentUser));
   showApp();
-}
-
-async function signIn() {
-  try {
-    el('googleSignInBtn').disabled = true;
-    el('googleSignInBtn').textContent = '⏳ กำลังเข้าสู่ระบบ...';
-    const result = await auth.signInWithPopup(googleProvider);
-    const cred   = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-    handleFirebaseUser(result.user, cred?.accessToken || null);
-  } catch (e) {
-    el('googleSignInBtn').disabled = false;
-    el('googleSignInBtn').innerHTML = `<svg width="20" height="20" viewBox="0 0 48 48">
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-    </svg> เข้าสู่ระบบด้วย Google`;
-    if (e.code !== 'auth/popup-closed-by-user') showToast('Login ล้มเหลว: ' + e.message, 'error');
-  }
 }
 
 function logout() {
   currentUser = null;
-  gmailToken  = null;
-  auth.signOut();
+  sessionStorage.removeItem('bbqUser');
+  google.accounts.id.disableAutoSelect();
   showLogin();
 }
 
@@ -140,7 +105,6 @@ function showLogin() {
   el('unauthorizedOverlay').classList.add('hidden');
   el('appHeader').classList.add('hidden');
   el('appContent').classList.add('hidden');
-  el('googleSignInBtn').disabled = false;
 }
 
 function showUnauthorized(email) {
@@ -173,7 +137,7 @@ function showApp() {
   renderCategory();
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────
+// ── Tabs ─────────────────────────────────────────────────────────
 function renderTabs() {
   const track = el('categoryTabs');
   track.innerHTML = '';
@@ -199,8 +163,10 @@ function renderCategory() {
   const header = document.createElement('div');
   header.className = 'cat-header';
   header.innerHTML = `
-    <div><h2 class="cat-title">${escHtml(cat.name)}</h2>
-    <p class="cat-count">${items.length} รายการ</p></div>
+    <div>
+      <h2 class="cat-title">${escHtml(cat.name)}</h2>
+      <p class="cat-count">${items.length} รายการ</p>
+    </div>
     ${isAdmin ? `<button class="add-item-btn" id="showAddFormBtn">+ เพิ่มรายการ</button>` : ''}
   `;
   container.appendChild(header);
@@ -272,7 +238,7 @@ function buildItemCard(item) {
   return card;
 }
 
-// ── CRUD ──────────────────────────────────────────────────────────
+// ── CRUD ─────────────────────────────────────────────────────────
 function adjustQty(itemId, delta) {
   const item = (stockData[currentCategoryId] || []).find(i => i.id === itemId);
   if (!item) return;
@@ -344,7 +310,7 @@ function renderStaffModal() {
     const row = document.createElement('div');
     row.className = 'staff-row';
     row.innerHTML = `<span>${escHtml(email)}</span>
-      <button class="remove-staff" data-email="${escHtml(email)}" title="ลบ">✕</button>`;
+      <button class="remove-staff" title="ลบ">✕</button>`;
     row.querySelector('.remove-staff').addEventListener('click', () => {
       saveStaff(loadStaff().filter(e => e !== email));
       renderStaffModal();
@@ -367,23 +333,23 @@ function addStaff() {
   showToast(`เพิ่ม ${email} แล้ว`, 'success');
 }
 
-// ── Report & Gmail ────────────────────────────────────────────────
+// ── Report & Gmail API ────────────────────────────────────────────
 function generateExcel(date) {
   const rows = [['วันที่','หมวดหมู่','ชื่อสินค้า','จำนวน','หน่วย']];
   CATEGORIES.forEach(cat => {
     const items = stockData[cat.id] || [];
     if (items.length === 0) rows.push([date, cat.name, '-', 0, '-']);
-    else items.forEach(item => rows.push([date, cat.name, item.name, item.qty, item.unit]));
+    else items.forEach(i => rows.push([date, cat.name, i.name, i.qty, i.unit]));
   });
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch:12 }, { wch:16 }, { wch:24 }, { wch:10 }, { wch:10 }];
+  ws['!cols'] = [{ wch:12 },{ wch:16 },{ wch:24 },{ wch:10 },{ wch:10 }];
   XLSX.utils.book_append_sheet(wb, ws, 'สต็อกสินค้า');
-  return XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  return XLSX.write(wb, { type:'base64', bookType:'xlsx' });
 }
 
 function buildMimeEmail({ to, subject, bodyText, filename, fileBase64 }) {
-  const boundary = `LBBQreport_${Date.now()}`;
+  const boundary = `LBBQ_${Date.now()}`;
   const mime = [
     `To: ${to}`,
     `Subject: =?utf-8?B?${base64EncodeUTF8(subject)}?=`,
@@ -405,10 +371,10 @@ function buildMimeEmail({ to, subject, bodyText, filename, fileBase64 }) {
     '',
     `--${boundary}--`,
   ].join('\r\n');
-  return btoa(mime).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(mime).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 
-async function sendViaGmail(token, date) {
+async function sendViaGmail(accessToken, date) {
   const xlsxB64  = generateExcel(date);
   const filename = `stock-report-${date}.xlsx`;
   const bodyText = [
@@ -430,60 +396,48 @@ async function sendViaGmail(token, date) {
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method:  'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body:    JSON.stringify({ raw }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    if (res.status === 401) throw new Error('TOKEN_EXPIRED');
     throw new Error(err.error?.message || `HTTP ${res.status}`);
   }
 }
 
-async function handleSaveReport() {
+function handleSaveReport() {
   if (!currentUser) return;
   const date = el('reportDate').value;
   if (!date) { showToast('กรุณาเลือกวันที่รายงาน', 'error'); return; }
 
-  // Admin → download only
+  // Admin → download Excel
   if (currentUser.role === 'admin') {
-    if (typeof XLSX === 'undefined') { showToast('ไม่สามารถโหลด SheetJS ได้', 'error'); return; }
     const b64 = generateExcel(date);
-    const wb  = XLSX.read(b64, { type: 'base64' });
+    const wb  = XLSX.read(b64, { type:'base64' });
     XLSX.writeFile(wb, `stock-report-${date}.xlsx`);
     showToast(`ดาวน์โหลดรายงาน ${date} เรียบร้อย`, 'success');
     return;
   }
 
-  // Staff → send via Gmail
+  // Staff → send via Gmail API
   setSaving(true);
-  try {
-    let token = gmailToken;
-
-    // If no token or expired, re-authenticate to get fresh token
-    if (!token) {
-      showToast('กำลังขอสิทธิ์ Gmail...', 'info');
-      const result  = await auth.signInWithPopup(googleProvider);
-      const cred    = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-      token = cred?.accessToken;
-      if (token) gmailToken = token;
+  tokenClient.callback = async tokenResponse => {
+    if (tokenResponse.error) {
+      showToast(`ไม่สามารถขอสิทธิ์ Gmail ได้: ${tokenResponse.error}`, 'error');
+      setSaving(false);
+      return;
     }
-
-    if (!token) { showToast('ไม่สามารถขอสิทธิ์ Gmail ได้', 'error'); setSaving(false); return; }
-
-    await sendViaGmail(token, date);
-    showToast(`✅ ส่งรายงาน ${date} ไปที่ ${ADMIN_EMAIL} เรียบร้อย`, 'success', 5000);
-  } catch (e) {
-    if (e.message === 'TOKEN_EXPIRED') {
-      gmailToken = null;
-      showToast('Session หมดอายุ กรุณา logout และ login ใหม่', 'error', 5000);
-    } else {
+    try {
+      await sendViaGmail(tokenResponse.access_token, date);
+      showToast(`✅ ส่งรายงาน ${date} ไปที่ ${ADMIN_EMAIL} เรียบร้อย`, 'success', 5000);
+    } catch (e) {
       showToast(`เกิดข้อผิดพลาด: ${e.message}`, 'error');
+    } finally {
+      setSaving(false);
     }
-  } finally {
-    setSaving(false);
-  }
+  };
+  tokenClient.requestAccessToken({ prompt: '' });
 }
 
 function setSaving(on) {
@@ -492,41 +446,61 @@ function setSaving(on) {
   btn.textContent = on ? '⏳ กำลังส่ง...' : '💾 บันทึกรายงาน';
 }
 
+// ── Google Identity Services ──────────────────────────────────────
+window.onGoogleLibLoaded = function () {
+  google.accounts.id.initialize({
+    client_id:             GOOGLE_CLIENT_ID,
+    callback:              handleSignIn,
+    auto_select:           false,
+    cancel_on_tap_outside: false,
+  });
+
+  google.accounts.id.renderButton(el('gSignInBtn'), {
+    type:   'standard',
+    theme:  'outline',
+    size:   'large',
+    text:   'signin_with',
+    locale: 'th',
+    width:  280,
+  });
+
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope:     'https://www.googleapis.com/auth/gmail.send',
+    callback:  () => {},
+  });
+};
+
 // ── Init ──────────────────────────────────────────────────────────
 function init() {
   loadStock();
   el('reportDate').value = new Date().toISOString().slice(0, 10);
 
-  // Firebase auth state observer
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      // Restored session (no Gmail token after page refresh — that's OK)
-      handleFirebaseUser(user, null);
-    } else {
-      if (!currentUser) showLogin();
-    }
-  });
+  // Restore session
+  try {
+    const saved = JSON.parse(sessionStorage.getItem('bbqUser') || 'null');
+    if (saved?.email && getRole(saved.email)) { currentUser = saved; showApp(); }
+    else showLogin();
+  } catch { showLogin(); }
 
   // Event listeners
-  el('googleSignInBtn').addEventListener('click', signIn);
   el('logoutBtn').addEventListener('click', logout);
-  el('unauthorizedLogoutBtn').addEventListener('click', () => { auth.signOut(); showLogin(); });
+  el('unauthorizedLogoutBtn').addEventListener('click', () => {
+    google.accounts.id.disableAutoSelect(); showLogin();
+  });
   el('saveReportBtn').addEventListener('click', handleSaveReport);
 
-  // Edit modal
   el('saveEditBtn').addEventListener('click', saveEdit);
   el('cancelEditBtn').addEventListener('click', closeEditModal);
   el('editModal').addEventListener('click', e => { if (e.target === el('editModal')) closeEditModal(); });
   el('editQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveEdit(); });
 
-  // Staff modal
   el('manageStaffBtn').addEventListener('click', () => { el('staffModal').classList.remove('hidden'); renderStaffModal(); });
   el('closeStaffModal').addEventListener('click', () => el('staffModal').classList.add('hidden'));
   el('staffModal').addEventListener('click', e => { if (e.target === el('staffModal')) el('staffModal').classList.add('hidden'); });
   el('addStaffBtn').addEventListener('click', addStaff);
   el('staffEmailInput').addEventListener('keydown', e => { if (e.key === 'Enter') addStaff(); });
 
-  // Global Esc
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeEditModal(); el('staffModal').classList.add('hidden'); }
   });

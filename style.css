@@ -71,25 +71,12 @@ body {
 
 .auth-note { color: var(--text-muted); font-size: 0.82rem; margin-top: 14px; }
 
-.google-btn {
+#gSignInBtn {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 10px;
-  width: 100%;
-  background: white;
-  color: #3c4043;
-  border: 1.5px solid #dadce0;
-  border-radius: 24px;
-  padding: 12px 24px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  min-height: 44px;
+  align-items: center;
 }
-.google-btn:hover:not(:disabled) { background: #f8f9fa; box-shadow: 0 2px 8px rgba(0,0,0,0.15); transform: none; filter: none; }
-.google-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .setup-notice {
   background: var(--warning-bg);
