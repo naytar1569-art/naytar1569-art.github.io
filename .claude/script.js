@@ -1,21 +1,20 @@
 // ============================================================
 //  LamthongBBQ Stock Management System
-// ============================================================
-//
-//  SETUP REQUIRED (Google Cloud Console):
-//  1. ไปที่ https://console.cloud.google.com
-//  2. สร้างโปรเจค → APIs & Services → Enable Gmail API
-//  3. OAuth consent screen → External → เพิ่ม scope:
-//       email, profile, https://www.googleapis.com/auth/gmail.send
-//  4. Credentials → Create → OAuth 2.0 Client ID → Web application
-//  5. Authorized JavaScript origins: https://naytar1569-art.github.io
-//  6. นำ Client ID มาวางที่ GOOGLE_CLIENT_ID ด้านล่าง
-//  7. เพิ่ม Gmail ของพนักงานใน "จัดการพนักงาน" (เฉพาะ admin)
-//
+//  Auth: Firebase (Google Sign-In)
+//  Email: Gmail API via OAuth access token
 // ============================================================
 
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-const ADMIN_EMAIL      = 'naytar1569@gmail.com';
+const FIREBASE_CONFIG = {
+  projectId:         "lamthong-bbq-2025",
+  appId:             "1:202910034130:web:834d18faa8f1d88ac2650b",
+  storageBucket:     "lamthong-bbq-2025.firebasestorage.app",
+  apiKey:            "AIzaSyBV8Bzeg1lZB-4yFzTXO9ML2d1249QwtTA",
+  authDomain:        "lamthong-bbq-2025.firebaseapp.com",
+  messagingSenderId: "202910034130",
+  measurementId:     "G-CBL6WVH329",
+};
+
+const ADMIN_EMAIL = 'naytar1569@gmail.com';
 
 const CATEGORIES = [
   { id: 'meat',    name: 'เนื้อสัตว์' },
@@ -24,22 +23,26 @@ const CATEGORIES = [
   { id: 'general', name: 'ของใช้ทั่วไป' },
 ];
 
-// ── State ─────────────────────────────────────────────────────
-let currentUser        = null;
-let currentCategoryId  = CATEGORIES[0].id;
-let stockData          = {};   // { categoryId: [{ id, name, unit, qty }] }
-let tokenClient        = null;
-let editingItemId      = null;
+// ── State ──────────────────────────────────────────────────────
+let currentUser       = null;
+let currentCategoryId = CATEGORIES[0].id;
+let stockData         = {};
+let editingItemId     = null;
+let gmailToken        = null;   // OAuth access token for Gmail API
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Firebase ────────────────────────────────────────────────────
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth           = firebase.auth();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+googleProvider.addScope('https://www.googleapis.com/auth/gmail.send');
+googleProvider.setCustomParameters({ login_hint: ADMIN_EMAIL });
+
+// ── Helpers ─────────────────────────────────────────────────────
 const el = id => document.getElementById(id);
 
 function escHtml(s) {
   return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function base64EncodeUTF8(str) {
@@ -50,54 +53,36 @@ function base64EncodeUTF8(str) {
 }
 
 function showToast(msg, type = 'info', duration = 3500) {
-  const container = el('toastContainer');
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  toast.textContent = msg;
-  container.appendChild(toast);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => toast.classList.add('visible'));
-  });
-  setTimeout(() => {
-    toast.classList.remove('visible');
-    setTimeout(() => toast.remove(), 350);
-  }, duration);
+  const c = el('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('visible')));
+  setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 350); }, duration);
 }
 
-// ── Storage ───────────────────────────────────────────────────
+// ── Storage ──────────────────────────────────────────────────────
 function loadStock() {
   try {
     const raw = localStorage.getItem('bbqStock_v2');
     if (raw) {
-      const parsed = JSON.parse(raw);
-      CATEGORIES.forEach(cat => {
-        stockData[cat.id] = Array.isArray(parsed[cat.id]) ? parsed[cat.id] : [];
-      });
+      const p = JSON.parse(raw);
+      CATEGORIES.forEach(c => { stockData[c.id] = Array.isArray(p[c.id]) ? p[c.id] : []; });
       return;
     }
   } catch { /* ignore */ }
-  CATEGORIES.forEach(cat => { stockData[cat.id] = []; });
+  CATEGORIES.forEach(c => { stockData[c.id] = []; });
 }
 
-function saveStock() {
-  localStorage.setItem('bbqStock_v2', JSON.stringify(stockData));
-}
+function saveStock() { localStorage.setItem('bbqStock_v2', JSON.stringify(stockData)); }
 
 function loadStaff() {
-  try { return JSON.parse(localStorage.getItem('bbqStaff') || '[]'); }
-  catch { return []; }
+  try { return JSON.parse(localStorage.getItem('bbqStaff') || '[]'); } catch { return []; }
 }
+function saveStaff(list) { localStorage.setItem('bbqStaff', JSON.stringify(list)); }
 
-function saveStaff(list) {
-  localStorage.setItem('bbqStaff', JSON.stringify(list));
-}
-
-// ── Auth ──────────────────────────────────────────────────────
-function parseJwt(token) {
-  try { return JSON.parse(atob(token.split('.')[1])); }
-  catch { return null; }
-}
-
+// ── Auth & Roles ─────────────────────────────────────────────────
 function getRole(email) {
   if (!email) return null;
   if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return 'admin';
@@ -106,42 +91,56 @@ function getRole(email) {
   return null;
 }
 
-function handleSignIn(credentialResponse) {
-  const payload = parseJwt(credentialResponse.credential);
-  if (!payload) {
-    showToast('ไม่สามารถอ่านข้อมูลจาก Google ได้', 'error');
-    return;
-  }
-  const email = (payload.email || '').toLowerCase();
+function handleFirebaseUser(firebaseUser, accessToken) {
+  if (!firebaseUser) { showLogin(); return; }
+  const email = (firebaseUser.email || '').toLowerCase();
   const role  = getRole(email);
-  if (!role) {
-    showUnauthorized(email);
-    return;
-  }
+  if (!role) { showUnauthorized(email); auth.signOut(); return; }
+
+  if (accessToken) gmailToken = accessToken;
+
   currentUser = {
     email,
-    name:       payload.name    || email,
-    picture:    payload.picture || '',
+    name:    firebaseUser.displayName || email,
+    picture: firebaseUser.photoURL    || '',
     role,
-    credential: credentialResponse.credential,
   };
-  sessionStorage.setItem('bbqCurrentUser', JSON.stringify(currentUser));
   showApp();
+}
+
+async function signIn() {
+  try {
+    el('googleSignInBtn').disabled = true;
+    el('googleSignInBtn').textContent = '⏳ กำลังเข้าสู่ระบบ...';
+    const result = await auth.signInWithPopup(googleProvider);
+    const cred   = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+    handleFirebaseUser(result.user, cred?.accessToken || null);
+  } catch (e) {
+    el('googleSignInBtn').disabled = false;
+    el('googleSignInBtn').innerHTML = `<svg width="20" height="20" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    </svg> เข้าสู่ระบบด้วย Google`;
+    if (e.code !== 'auth/popup-closed-by-user') showToast('Login ล้มเหลว: ' + e.message, 'error');
+  }
 }
 
 function logout() {
   currentUser = null;
-  sessionStorage.removeItem('bbqCurrentUser');
-  if (typeof google !== 'undefined') google.accounts.id.disableAutoSelect();
+  gmailToken  = null;
+  auth.signOut();
   showLogin();
 }
 
-// ── UI State ──────────────────────────────────────────────────
+// ── UI State ─────────────────────────────────────────────────────
 function showLogin() {
   el('loginOverlay').classList.remove('hidden');
   el('unauthorizedOverlay').classList.add('hidden');
   el('appHeader').classList.add('hidden');
   el('appContent').classList.add('hidden');
+  el('googleSignInBtn').disabled = false;
 }
 
 function showUnauthorized(email) {
@@ -158,75 +157,54 @@ function showApp() {
   el('appHeader').classList.remove('hidden');
   el('appContent').classList.remove('hidden');
 
-  // Update header user info
   const avatar = el('userAvatar');
-  if (currentUser.picture) {
-    avatar.src = currentUser.picture;
-    avatar.classList.remove('hidden');
-  } else {
-    avatar.classList.add('hidden');
-  }
+  if (currentUser.picture) { avatar.src = currentUser.picture; avatar.classList.remove('hidden'); }
+  else avatar.classList.add('hidden');
+
   el('userName').textContent = currentUser.name;
-
   const badge = el('roleLabel');
-  if (currentUser.role === 'admin') {
-    badge.textContent = 'ผู้ดูแลระบบ';
-    badge.className   = 'role-badge admin';
-  } else {
-    badge.textContent = 'พนักงาน';
-    badge.className   = 'role-badge employee';
-  }
+  badge.textContent = currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
+  badge.className   = `role-badge ${currentUser.role}`;
 
-  // Show admin-only UI elements
-  document.querySelectorAll('.admin-only').forEach(node => {
-    node.classList.toggle('hidden', currentUser.role !== 'admin');
-  });
+  document.querySelectorAll('.admin-only')
+    .forEach(n => n.classList.toggle('hidden', currentUser.role !== 'admin'));
 
   renderTabs();
   renderCategory();
 }
 
-// ── Tabs ──────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────────────────────────
 function renderTabs() {
   const track = el('categoryTabs');
   track.innerHTML = '';
   CATEGORIES.forEach(cat => {
     const count = (stockData[cat.id] || []).length;
-    const btn = document.createElement('button');
-    btn.type = 'button';
+    const btn   = document.createElement('button');
+    btn.type      = 'button';
     btn.className = 'tab-btn' + (cat.id === currentCategoryId ? ' active' : '');
     btn.innerHTML = `<span class="tab-name">${escHtml(cat.name)}</span><span class="tab-count">${count} รายการ</span>`;
-    btn.addEventListener('click', () => {
-      currentCategoryId = cat.id;
-      renderTabs();
-      renderCategory();
-    });
+    btn.addEventListener('click', () => { currentCategoryId = cat.id; renderTabs(); renderCategory(); });
     track.appendChild(btn);
   });
 }
 
-// ── Category View ─────────────────────────────────────────────
+// ── Category View ─────────────────────────────────────────────────
 function renderCategory() {
   const container = el('categoryView');
   container.innerHTML = '';
-
-  const cat   = CATEGORIES.find(c => c.id === currentCategoryId);
-  const items = stockData[currentCategoryId] || [];
+  const cat     = CATEGORIES.find(c => c.id === currentCategoryId);
+  const items   = stockData[currentCategoryId] || [];
   const isAdmin = currentUser?.role === 'admin';
 
-  // ── Category header
   const header = document.createElement('div');
   header.className = 'cat-header';
   header.innerHTML = `
-    <div>
-      <h2 class="cat-title">${escHtml(cat.name)}</h2>
-      <p class="cat-count">${items.length} รายการ</p>
-    </div>
+    <div><h2 class="cat-title">${escHtml(cat.name)}</h2>
+    <p class="cat-count">${items.length} รายการ</p></div>
     ${isAdmin ? `<button class="add-item-btn" id="showAddFormBtn">+ เพิ่มรายการ</button>` : ''}
   `;
   container.appendChild(header);
 
-  // ── Add item form (admin only)
   if (isAdmin) {
     const form = document.createElement('div');
     form.id = 'addItemForm';
@@ -240,30 +218,18 @@ function renderCategory() {
       <div class="form-actions">
         <button id="saveNewItemBtn" class="btn-primary">บันทึก</button>
         <button id="cancelNewItemBtn" class="btn-secondary">ยกเลิก</button>
-      </div>
-    `;
+      </div>`;
     container.appendChild(form);
 
     el('showAddFormBtn').addEventListener('click', () => {
       form.classList.toggle('hidden');
       if (!form.classList.contains('hidden')) el('newItemName').focus();
     });
-
     el('saveNewItemBtn').addEventListener('click', saveNewItem);
     el('cancelNewItemBtn').addEventListener('click', () => form.classList.add('hidden'));
-
-    el('newItemName').addEventListener('keydown', e => {
-      if (e.key === 'Enter') el('newItemUnit').focus();
-    });
-    el('newItemUnit').addEventListener('keydown', e => {
-      if (e.key === 'Enter') el('newItemQty').focus();
-    });
-    el('newItemQty').addEventListener('keydown', e => {
-      if (e.key === 'Enter') saveNewItem();
-    });
+    el('newItemQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewItem(); });
   }
 
-  // ── Items
   if (items.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'empty-state';
@@ -278,10 +244,9 @@ function renderCategory() {
 }
 
 function buildItemCard(item) {
-  const card = document.createElement('div');
+  const card    = document.createElement('div');
   card.className = 'item-card';
-  const isAdmin = currentUser?.role === 'admin';
-
+  const isAdmin  = currentUser?.role === 'admin';
   card.innerHTML = `
     <div class="item-info">
       <span class="item-name">${escHtml(item.name)}</span>
@@ -289,37 +254,30 @@ function buildItemCard(item) {
     </div>
     <div class="item-controls">
       <div class="qty-control">
-        <button class="qty-btn dec" aria-label="ลด" data-id="${item.id}">−</button>
+        <button class="qty-btn dec" aria-label="ลด">−</button>
         <span class="qty-val">${item.qty}</span>
-        <button class="qty-btn inc" aria-label="เพิ่ม" data-id="${item.id}">+</button>
+        <button class="qty-btn inc" aria-label="เพิ่ม">+</button>
       </div>
-      ${isAdmin ? `
-      <div class="item-admin-actions">
-        <button class="icon-btn edit-btn" data-id="${item.id}" title="แก้ไข" aria-label="แก้ไข">✏️</button>
-        <button class="icon-btn delete-btn" data-id="${item.id}" title="ลบ" aria-label="ลบ">🗑️</button>
+      ${isAdmin ? `<div class="item-admin-actions">
+        <button class="icon-btn edit-btn" title="แก้ไข">✏️</button>
+        <button class="icon-btn delete-btn" title="ลบ">🗑️</button>
       </div>` : ''}
-    </div>
-  `;
-
+    </div>`;
   card.querySelector('.dec').addEventListener('click', () => adjustQty(item.id, -1));
   card.querySelector('.inc').addEventListener('click', () => adjustQty(item.id, +1));
-
   if (isAdmin) {
-    card.querySelector('.edit-btn').addEventListener('click', () => openEditModal(item.id));
+    card.querySelector('.edit-btn').addEventListener('click',   () => openEditModal(item.id));
     card.querySelector('.delete-btn').addEventListener('click', () => deleteItem(item.id));
   }
-
   return card;
 }
 
-// ── CRUD ──────────────────────────────────────────────────────
+// ── CRUD ──────────────────────────────────────────────────────────
 function adjustQty(itemId, delta) {
   const item = (stockData[currentCategoryId] || []).find(i => i.id === itemId);
   if (!item) return;
   item.qty = Math.max(0, item.qty + delta);
-  saveStock();
-  renderTabs();
-  renderCategory();
+  saveStock(); renderTabs(); renderCategory();
 }
 
 function saveNewItem() {
@@ -331,23 +289,20 @@ function saveNewItem() {
   stockData[currentCategoryId].push({ id: crypto.randomUUID(), name, unit, qty });
   saveStock();
   showToast(`เพิ่ม "${name}" เรียบร้อย`, 'success');
-  renderTabs();
-  renderCategory();
+  renderTabs(); renderCategory();
 }
 
 function deleteItem(itemId) {
   const items = stockData[currentCategoryId] || [];
   const item  = items.find(i => i.id === itemId);
-  if (!item) return;
-  if (!confirm(`ลบรายการ "${item.name}" ใช่หรือไม่?`)) return;
+  if (!item || !confirm(`ลบรายการ "${item.name}" ใช่หรือไม่?`)) return;
   stockData[currentCategoryId] = items.filter(i => i.id !== itemId);
   saveStock();
-  showToast(`ลบ "${item.name}" เรียบร้อย`, 'info');
-  renderTabs();
-  renderCategory();
+  showToast(`ลบ "${item.name}" แล้ว`, 'info');
+  renderTabs(); renderCategory();
 }
 
-// ── Edit Modal ────────────────────────────────────────────────
+// ── Edit Modal ────────────────────────────────────────────────────
 function openEditModal(itemId) {
   const item = (stockData[currentCategoryId] || []).find(i => i.id === itemId);
   if (!item) return;
@@ -359,33 +314,24 @@ function openEditModal(itemId) {
   el('editName').focus();
 }
 
-function closeEditModal() {
-  editingItemId = null;
-  el('editModal').classList.add('hidden');
-}
+function closeEditModal() { editingItemId = null; el('editModal').classList.add('hidden'); }
 
 function saveEdit() {
   if (!editingItemId) return;
   const item = (stockData[currentCategoryId] || []).find(i => i.id === editingItemId);
   if (!item) { closeEditModal(); return; }
-
   const name = el('editName').value.trim();
   const unit = el('editUnit').value.trim();
   const qty  = Number(el('editQty').value);
   if (!name) { showToast('กรุณากรอกชื่อสินค้า', 'error'); return; }
   if (isNaN(qty) || qty < 0) { showToast('จำนวนต้องไม่ติดลบ', 'error'); return; }
-
-  item.name = name;
-  item.unit = unit || 'ชิ้น';
-  item.qty  = qty;
-  saveStock();
-  closeEditModal();
+  item.name = name; item.unit = unit || 'ชิ้น'; item.qty = qty;
+  saveStock(); closeEditModal();
   showToast('แก้ไขเรียบร้อย', 'success');
-  renderTabs();
-  renderCategory();
+  renderTabs(); renderCategory();
 }
 
-// ── Staff Management ──────────────────────────────────────────
+// ── Staff Management ──────────────────────────────────────────────
 function renderStaffModal() {
   const list  = el('staffList');
   const staff = loadStaff();
@@ -397,12 +343,12 @@ function renderStaffModal() {
   staff.forEach(email => {
     const row = document.createElement('div');
     row.className = 'staff-row';
-    row.innerHTML = `<span>${escHtml(email)}</span><button class="remove-staff" data-email="${escHtml(email)}" title="ลบ">✕</button>`;
+    row.innerHTML = `<span>${escHtml(email)}</span>
+      <button class="remove-staff" data-email="${escHtml(email)}" title="ลบ">✕</button>`;
     row.querySelector('.remove-staff').addEventListener('click', () => {
-      const updated = loadStaff().filter(e => e !== email);
-      saveStaff(updated);
+      saveStaff(loadStaff().filter(e => e !== email));
       renderStaffModal();
-      showToast(`ลบ ${email} เรียบร้อย`, 'info');
+      showToast(`ลบ ${email} แล้ว`, 'info');
     });
     list.appendChild(row);
   });
@@ -418,36 +364,29 @@ function addStaff() {
   saveStaff(staff);
   el('staffEmailInput').value = '';
   renderStaffModal();
-  showToast(`เพิ่ม ${email} เรียบร้อย`, 'success');
+  showToast(`เพิ่ม ${email} แล้ว`, 'success');
 }
 
-// ── Report & Excel ─────────────────────────────────────────────
+// ── Report & Gmail ────────────────────────────────────────────────
 function generateExcel(date) {
-  const rows = [['วันที่', 'หมวดหมู่', 'ชื่อสินค้า', 'จำนวน', 'หน่วย']];
+  const rows = [['วันที่','หมวดหมู่','ชื่อสินค้า','จำนวน','หน่วย']];
   CATEGORIES.forEach(cat => {
     const items = stockData[cat.id] || [];
-    if (items.length === 0) {
-      rows.push([date, cat.name, '-', 0, '-']);
-    } else {
-      items.forEach(item => rows.push([date, cat.name, item.name, item.qty, item.unit]));
-    }
+    if (items.length === 0) rows.push([date, cat.name, '-', 0, '-']);
+    else items.forEach(item => rows.push([date, cat.name, item.name, item.qty, item.unit]));
   });
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 24 }, { wch: 10 }, { wch: 10 }];
+  ws['!cols'] = [{ wch:12 }, { wch:16 }, { wch:24 }, { wch:10 }, { wch:10 }];
   XLSX.utils.book_append_sheet(wb, ws, 'สต็อกสินค้า');
   return XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
 }
 
-function buildMimeMessage({ to, subject, bodyText, filename, fileBase64 }) {
-  const boundary  = `LamthongBBQ_${Date.now()}`;
-  const subjB64   = base64EncodeUTF8(subject);
-  const bodyB64   = base64EncodeUTF8(bodyText);
-
-  // All parts below are ASCII after encoding so btoa() on the joined string is safe
+function buildMimeEmail({ to, subject, bodyText, filename, fileBase64 }) {
+  const boundary = `LBBQreport_${Date.now()}`;
   const mime = [
     `To: ${to}`,
-    `Subject: =?utf-8?B?${subjB64}?=`,
+    `Subject: =?utf-8?B?${base64EncodeUTF8(subject)}?=`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     '',
@@ -455,7 +394,7 @@ function buildMimeMessage({ to, subject, bodyText, filename, fileBase64 }) {
     'Content-Type: text/plain; charset=utf-8',
     'Content-Transfer-Encoding: base64',
     '',
-    bodyB64,
+    base64EncodeUTF8(bodyText),
     '',
     `--${boundary}`,
     'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -466,55 +405,48 @@ function buildMimeMessage({ to, subject, bodyText, filename, fileBase64 }) {
     '',
     `--${boundary}--`,
   ].join('\r\n');
-
   return btoa(mime).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function sendViaGmailApi(accessToken, date) {
+async function sendViaGmail(token, date) {
   const xlsxB64  = generateExcel(date);
   const filename = `stock-report-${date}.xlsx`;
-
   const bodyText = [
     `รายงานสต็อกประจำวัน: ${date}`,
     `ผู้ส่ง: ${currentUser.name} (${currentUser.email})`,
     '',
-    'สรุปรายหมวด:',
-    ...CATEGORIES.map(cat => {
-      const items = stockData[cat.id] || [];
-      const total = items.reduce((s, i) => s + i.qty, 0);
-      return `  - ${cat.name}: ${items.length} รายการ (รวม ${total})`;
+    ...CATEGORIES.map(c => {
+      const items = stockData[c.id] || [];
+      return `  ${c.name}: ${items.length} รายการ (รวม ${items.reduce((s,i)=>s+i.qty,0)})`;
     }),
-    '',
-    'ดูรายละเอียดในไฟล์แนบ',
+    '', 'ดูรายละเอียดในไฟล์แนบ',
   ].join('\n');
 
-  const raw = buildMimeMessage({
-    to:       ADMIN_EMAIL,
-    subject:  `รายงานสต็อก LamthongBBQ วันที่ ${date}`,
-    bodyText,
-    filename,
-    fileBase64: xlsxB64,
+  const raw = buildMimeEmail({
+    to: ADMIN_EMAIL,
+    subject: `รายงานสต็อก LamthongBBQ วันที่ ${date}`,
+    bodyText, filename, fileBase64: xlsxB64,
   });
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method:  'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body:    JSON.stringify({ raw }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 401) throw new Error('TOKEN_EXPIRED');
     throw new Error(err.error?.message || `HTTP ${res.status}`);
   }
-  return true;
 }
 
-function handleSaveReport() {
+async function handleSaveReport() {
   if (!currentUser) return;
   const date = el('reportDate').value;
   if (!date) { showToast('กรุณาเลือกวันที่รายงาน', 'error'); return; }
 
-  // Admin: just download Excel locally
+  // Admin → download only
   if (currentUser.role === 'admin') {
     if (typeof XLSX === 'undefined') { showToast('ไม่สามารถโหลด SheetJS ได้', 'error'); return; }
     const b64 = generateExcel(date);
@@ -524,33 +456,34 @@ function handleSaveReport() {
     return;
   }
 
-  // Staff: send via Gmail API
-  if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
-    showToast('ยังไม่ได้ตั้งค่า Google Client ID — ดูคำแนะนำในหน้า Login', 'error');
-    return;
-  }
-
-  if (!tokenClient) { showToast('Google API ยังไม่พร้อม กรุณารอสักครู่', 'error'); return; }
-
+  // Staff → send via Gmail
   setSaving(true);
+  try {
+    let token = gmailToken;
 
-  tokenClient.callback = async tokenResponse => {
-    if (tokenResponse.error) {
-      showToast(`ไม่สามารถขอสิทธิ์ Gmail ได้: ${tokenResponse.error}`, 'error');
-      setSaving(false);
-      return;
+    // If no token or expired, re-authenticate to get fresh token
+    if (!token) {
+      showToast('กำลังขอสิทธิ์ Gmail...', 'info');
+      const result  = await auth.signInWithPopup(googleProvider);
+      const cred    = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+      token = cred?.accessToken;
+      if (token) gmailToken = token;
     }
-    try {
-      await sendViaGmailApi(tokenResponse.access_token, date);
-      showToast(`✅ ส่งรายงาน ${date} ไปที่ ${ADMIN_EMAIL} เรียบร้อย`, 'success', 5000);
-    } catch (e) {
+
+    if (!token) { showToast('ไม่สามารถขอสิทธิ์ Gmail ได้', 'error'); setSaving(false); return; }
+
+    await sendViaGmail(token, date);
+    showToast(`✅ ส่งรายงาน ${date} ไปที่ ${ADMIN_EMAIL} เรียบร้อย`, 'success', 5000);
+  } catch (e) {
+    if (e.message === 'TOKEN_EXPIRED') {
+      gmailToken = null;
+      showToast('Session หมดอายุ กรุณา logout และ login ใหม่', 'error', 5000);
+    } else {
       showToast(`เกิดข้อผิดพลาด: ${e.message}`, 'error');
-    } finally {
-      setSaving(false);
     }
-  };
-
-  tokenClient.requestAccessToken({ prompt: '' });
+  } finally {
+    setSaving(false);
+  }
 }
 
 function setSaving(on) {
@@ -559,62 +492,25 @@ function setSaving(on) {
   btn.textContent = on ? '⏳ กำลังส่ง...' : '💾 บันทึกรายงาน';
 }
 
-// ── Google Identity Services ──────────────────────────────────
-window.onGoogleLibLoaded = function () {
-  if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
-    el('setupNotice').classList.remove('hidden');
-    return;
-  }
-
-  google.accounts.id.initialize({
-    client_id:           GOOGLE_CLIENT_ID,
-    callback:            handleSignIn,
-    auto_select:         false,
-    cancel_on_tap_outside: false,
-  });
-
-  google.accounts.id.renderButton(el('googleSignInBtn'), {
-    type:   'standard',
-    theme:  'outline',
-    size:   'large',
-    text:   'signin_with',
-    locale: 'th',
-    width:  280,
-  });
-
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope:     'https://www.googleapis.com/auth/gmail.send',
-    callback:  () => { /* set dynamically before use */ },
-  });
-};
-
-// ── Init ──────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────
 function init() {
   loadStock();
-
-  // Set today's date
   el('reportDate').value = new Date().toISOString().slice(0, 10);
 
-  // Restore session
-  try {
-    const saved = JSON.parse(sessionStorage.getItem('bbqCurrentUser') || 'null');
-    if (saved && saved.email && getRole(saved.email)) {
-      currentUser = saved;
-      showApp();
+  // Firebase auth state observer
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      // Restored session (no Gmail token after page refresh — that's OK)
+      handleFirebaseUser(user, null);
     } else {
-      showLogin();
+      if (!currentUser) showLogin();
     }
-  } catch {
-    showLogin();
-  }
-
-  // Core event listeners
-  el('logoutBtn').addEventListener('click', logout);
-  el('unauthorizedLogoutBtn').addEventListener('click', () => {
-    if (typeof google !== 'undefined') google.accounts.id.disableAutoSelect();
-    showLogin();
   });
+
+  // Event listeners
+  el('googleSignInBtn').addEventListener('click', signIn);
+  el('logoutBtn').addEventListener('click', logout);
+  el('unauthorizedLogoutBtn').addEventListener('click', () => { auth.signOut(); showLogin(); });
   el('saveReportBtn').addEventListener('click', handleSaveReport);
 
   // Edit modal
@@ -622,22 +518,18 @@ function init() {
   el('cancelEditBtn').addEventListener('click', closeEditModal);
   el('editModal').addEventListener('click', e => { if (e.target === el('editModal')) closeEditModal(); });
   el('editQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveEdit(); });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      closeEditModal();
-      el('staffModal').classList.add('hidden');
-    }
-  });
 
   // Staff modal
-  el('manageStaffBtn').addEventListener('click', () => {
-    el('staffModal').classList.remove('hidden');
-    renderStaffModal();
-  });
+  el('manageStaffBtn').addEventListener('click', () => { el('staffModal').classList.remove('hidden'); renderStaffModal(); });
   el('closeStaffModal').addEventListener('click', () => el('staffModal').classList.add('hidden'));
   el('staffModal').addEventListener('click', e => { if (e.target === el('staffModal')) el('staffModal').classList.add('hidden'); });
   el('addStaffBtn').addEventListener('click', addStaff);
   el('staffEmailInput').addEventListener('keydown', e => { if (e.key === 'Enter') addStaff(); });
+
+  // Global Esc
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeEditModal(); el('staffModal').classList.add('hidden'); }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
