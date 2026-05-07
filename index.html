@@ -7,88 +7,124 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="LamthongBBQ Stock">
   <link rel="manifest" href="manifest.webmanifest">
-  <title>ระบบนับสต็อกร้าน</title>
+  <title>ระบบสต็อก LamthongBBQ</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>ระบบนับสต็อกร้าน</h1>
-    <p>แบ่งเป็น 4 หมวดหมู่ พร้อมเพิ่ม/ลบรายการและแก้ไขหน่วยได้</p>
-  </header>
 
-  <main>
-    <section class="overview">
-      <div>
-        <strong>หมวดหมู่ทั้งหมด</strong>
-        <span id="categoryCount">0</span>
+  <!-- Login Overlay -->
+  <div id="loginOverlay" class="overlay">
+    <div class="auth-card">
+      <div class="auth-logo">🍖</div>
+      <h1>LamthongBBQ</h1>
+      <p class="auth-subtitle">ระบบจัดการสต็อกสินค้า</p>
+      <div id="googleSignInBtn"></div>
+      <div id="setupNotice" class="setup-notice hidden">
+        <strong>⚠️ ยังไม่ได้ตั้งค่า Google Client ID</strong>
+        <ol>
+          <li>ไปที่ <strong>console.cloud.google.com</strong></li>
+          <li>สร้างโปรเจค → เปิดใช้ Gmail API</li>
+          <li>สร้าง OAuth Web Client ID</li>
+          <li>เพิ่ม <code>https://naytar1569-art.github.io</code> ใน Authorized origins</li>
+          <li>แก้ไข <code>GOOGLE_CLIENT_ID</code> ใน script.js</li>
+        </ol>
       </div>
-      <div>
-        <strong>จำนวนรายการทั้งหมด</strong>
-        <span id="itemCount">0</span>
+      <p class="auth-note">สำหรับผู้ที่ได้รับอนุญาตเท่านั้น</p>
+    </div>
+  </div>
+
+  <!-- Unauthorized Overlay -->
+  <div id="unauthorizedOverlay" class="overlay hidden">
+    <div class="auth-card">
+      <div class="auth-logo">🚫</div>
+      <h1>ไม่มีสิทธิ์เข้าถึง</h1>
+      <p class="auth-subtitle">อีเมลนี้ไม่ได้รับอนุญาตให้ใช้งาน</p>
+      <p id="unauthorizedEmail" class="auth-note"></p>
+      <p class="auth-note">ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์</p>
+      <button id="unauthorizedLogoutBtn" class="btn-secondary" style="margin-top:20px;width:100%">กลับไปหน้าเข้าสู่ระบบ</button>
+    </div>
+  </div>
+
+  <!-- Edit Item Modal -->
+  <div id="editModal" class="overlay hidden">
+    <div class="modal-card">
+      <h2>✏️ แก้ไขรายการ</h2>
+      <div class="edit-modal-form">
+        <label>ชื่อสินค้า<input id="editName" type="text" placeholder="เช่น หมูสามชั้น"></label>
+        <label>หน่วย<input id="editUnit" type="text" placeholder="เช่น กก."></label>
+        <label>จำนวน<input id="editQty" type="number" min="0" step="1"></label>
       </div>
-    </section>
-
-    <section class="controls">
-      <button id="newCategoryBtn">สร้างหมวดหมู่ใหม่</button>
-    </section>
-
-    <section class="hint">
-      <p>เว็บนี้รองรับมือถือ ใช้งานง่าย และสามารถบันทึกข้อมูลในเครื่องได้ หากต้องการนำไปใช้จริง ให้โฮสต์บน GitHub Pages หรือ Netlify แล้วตั้งชื่อเป็น <strong>lamthongbbq.github.io</strong> หรือ <strong>lamthongbbq.netlify.app</strong>.</p>
-    </section>
-
-    <section id="categories"></section>
-  </main>
-
-  <div id="modal" class="modal hidden">
-    <div class="modal-content">
-      <h2 id="modalTitle">เพิ่มหมวดหมู่</h2>
-      <label>
-        ชื่อหมวดหมู่
-        <input id="categoryNameInput" type="text" placeholder="เช่น เครื่องดื่ม">
-      </label>
       <div class="modal-actions">
-        <button id="saveCategoryBtn">บันทึก</button>
-        <button id="cancelBtn" class="secondary">ยกเลิก</button>
+        <button id="saveEditBtn" class="btn-primary">บันทึก</button>
+        <button id="cancelEditBtn" class="btn-secondary">ยกเลิก</button>
       </div>
     </div>
   </div>
 
-  <template id="categoryTemplate">
-    <article class="category-card">
-      <header>
-        <div>
-          <h2 class="category-title"></h2>
-          <p class="category-summary"></p>
-        </div>
-        <div class="category-actions">
-          <button class="addItemBtn">+ รายการ</button>
-          <button class="deleteCategoryBtn">ลบหมวด</button>
-        </div>
-      </header>
-      <div class="items"></div>
-      <div class="add-item-form hidden">
-        <label>
-          ชื่อรายการ
-          <input class="itemNameInput" type="text" placeholder="เช่น น้ำดื่ม">
-        </label>
-        <div class="row">
-          <label>
-            จำนวน
-            <input class="itemQtyInput" type="number" min="0" value="1">
-          </label>
-          <label>
-            หน่วย
-            <input class="itemUnitInput" type="text" placeholder="เช่น ขวด">
-          </label>
-        </div>
-        <div class="modal-actions">
-          <button class="saveItemBtn">บันทึกรายการ</button>
-          <button class="cancelItemBtn secondary">ยกเลิก</button>
-        </div>
+  <!-- Staff Management Modal -->
+  <div id="staffModal" class="overlay hidden">
+    <div class="modal-card">
+      <h2>👥 จัดการพนักงาน</h2>
+      <p class="modal-desc">เพิ่ม Gmail ของพนักงานเพื่อให้สามารถเข้าสู่ระบบได้</p>
+      <div id="staffList" class="staff-list"></div>
+      <div class="add-staff-row">
+        <input id="staffEmailInput" type="email" placeholder="staff@gmail.com">
+        <button id="addStaffBtn" class="btn-primary">+ เพิ่ม</button>
       </div>
-    </article>
-  </template>
+      <div class="modal-actions">
+        <button id="closeStaffModal" class="btn-secondary">ปิด</button>
+      </div>
+    </div>
+  </div>
 
+  <!-- App Header -->
+  <header id="appHeader" class="hidden">
+    <div class="header-brand">
+      <span class="brand-icon">🍖</span>
+      <div>
+        <h1>LamthongBBQ</h1>
+        <p class="header-subtitle">ระบบสต็อกสินค้า</p>
+      </div>
+    </div>
+    <div class="header-user">
+      <img id="userAvatar" class="avatar hidden" src="" alt="avatar">
+      <div class="user-info">
+        <strong id="userName"></strong>
+        <span id="roleLabel" class="role-badge"></span>
+      </div>
+      <button id="logoutBtn" class="logout-btn">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <!-- App Content -->
+  <div id="appContent" class="hidden">
+    <!-- Category Tabs (sticky, horizontal scroll) -->
+    <nav class="category-nav" aria-label="หมวดหมู่">
+      <div class="tabs-track" id="categoryTabs"></div>
+    </nav>
+
+    <!-- Overview Bar -->
+    <div class="overview-bar">
+      <label class="date-label">
+        <span>📅</span>
+        <span class="date-text">วันที่รายงาน</span>
+        <input id="reportDate" type="date" aria-label="วันที่รายงาน">
+      </label>
+      <div class="overview-actions">
+        <button id="manageStaffBtn" class="btn-outline admin-only hidden">👥 จัดการพนักงาน</button>
+        <button id="saveReportBtn" class="save-btn">💾 บันทึกรายงาน</button>
+      </div>
+    </div>
+
+    <!-- Category Content -->
+    <main id="categoryView"></main>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <script src="https://accounts.google.com/gsi/client" async onload="onGoogleLibLoaded()"></script>
   <script src="script.js"></script>
 </body>
 </html>
