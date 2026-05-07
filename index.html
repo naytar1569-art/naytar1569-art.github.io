@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="LamthongBBQ Stock">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>ระบบนับสต็อกร้าน</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>ระบบนับสต็อกร้าน</h1>
+    <p>แบ่งเป็น 4 หมวดหมู่ พร้อมเพิ่ม/ลบรายการและแก้ไขหน่วยได้</p>
+  </header>
+
+  <main>
+    <section class="overview">
+      <div>
+        <strong>หมวดหมู่ทั้งหมด</strong>
+        <span id="categoryCount">0</span>
+      </div>
+      <div>
+        <strong>จำนวนรายการทั้งหมด</strong>
+        <span id="itemCount">0</span>
+      </div>
+    </section>
+
+    <section class="controls">
+      <button id="newCategoryBtn">สร้างหมวดหมู่ใหม่</button>
+    </section>
+
+    <section class="hint">
+      <p>เว็บนี้รองรับมือถือ ใช้งานง่าย และสามารถบันทึกข้อมูลในเครื่องได้ หากต้องการนำไปใช้จริง ให้โฮสต์บน GitHub Pages หรือ Netlify แล้วตั้งชื่อเป็น <strong>lamthongbbq.github.io</strong> หรือ <strong>lamthongbbq.netlify.app</strong>.</p>
+    </section>
+
+    <section id="categories"></section>
+  </main>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="modalTitle">เพิ่มหมวดหมู่</h2>
+      <label>
+        ชื่อหมวดหมู่
+        <input id="categoryNameInput" type="text" placeholder="เช่น เครื่องดื่ม">
+      </label>
+      <div class="modal-actions">
+        <button id="saveCategoryBtn">บันทึก</button>
+        <button id="cancelBtn" class="secondary">ยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="categoryTemplate">
+    <article class="category-card">
+      <header>
+        <div>
+          <h2 class="category-title"></h2>
+          <p class="category-summary"></p>
+        </div>
+        <div class="category-actions">
+          <button class="addItemBtn">+ รายการ</button>
+          <button class="deleteCategoryBtn">ลบหมวด</button>
+        </div>
+      </header>
+      <div class="items"></div>
+      <div class="add-item-form hidden">
+        <label>
+          ชื่อรายการ
+          <input class="itemNameInput" type="text" placeholder="เช่น น้ำดื่ม">
+        </label>
+        <div class="row">
+          <label>
+            จำนวน
+            <input class="itemQtyInput" type="number" min="0" value="1">
+          </label>
+          <label>
+            หน่วย
+            <input class="itemUnitInput" type="text" placeholder="เช่น ขวด">
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="saveItemBtn">บันทึกรายการ</button>
+          <button class="cancelItemBtn secondary">ยกเลิก</button>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
