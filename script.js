@@ -116,12 +116,20 @@ function showApp() {
   badge.textContent = currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
   badge.className   = `role-badge ${currentUser.role}`;
 
+  // Load stock data if not loaded yet
+  if (Object.keys(stockData).length === 0) {
+    loadStock();
+  }
+
   // ตั้งค่าวันที่เป็นวันปัจจุบัน
   const today = new Date().toISOString().split('T')[0];
   el('reportDate').value = today;
 
   renderTabs();
   renderCategory();
+
+  // Setup additional event listeners after rendering
+  setupAdditionalEventListeners();
 }
 
 // ── Tabs ─────────────────────────────────────────────────────────
@@ -346,24 +354,32 @@ function generateExcelReport() {
 // ── Event Listeners ──────────────────────────────────────────────
 function setupEventListeners() {
   // Login
-  el('loginBtn').addEventListener('click', handleLogin);
-  el('passcodeInput').addEventListener('keydown', e => {
+  const loginBtn = el('loginBtn');
+  const passcodeInput = el('passcodeInput');
+  if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+  if (passcodeInput) passcodeInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') handleLogin();
   });
 
   // Logout
-  el('logoutBtn').addEventListener('click', logout);
+  const logoutBtn = el('logoutBtn');
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
   // Report
-  el('saveReportBtn').addEventListener('click', generateExcelReport);
+  const saveReportBtn = el('saveReportBtn');
+  if (saveReportBtn) saveReportBtn.addEventListener('click', generateExcelReport);
 
   // Edit Modal
-  el('saveEditBtn').addEventListener('click', saveEditItem);
-  el('cancelEditBtn').addEventListener('click', () => {
+  const saveEditBtn = el('saveEditBtn');
+  const cancelEditBtn = el('cancelEditBtn');
+  if (saveEditBtn) saveEditBtn.addEventListener('click', saveEditItem);
+  if (cancelEditBtn) cancelEditBtn.addEventListener('click', () => {
     el('editModal').classList.add('hidden');
     editingItemId = null;
   });
+}
 
+function setupAdditionalEventListeners() {
   // Dynamic events for items
   document.addEventListener('click', e => {
     const target = e.target;
@@ -395,7 +411,7 @@ function init() {
     if (saved) {
       currentUser = JSON.parse(saved);
       const role = getRoleFromPassword(currentUser.password);
-      if (role) {
+      if (role && currentUser.password) {
         showApp();
         return;
       }
