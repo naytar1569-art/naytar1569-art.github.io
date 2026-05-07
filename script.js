@@ -150,8 +150,12 @@ function renderTabs() {
 // ── Category View ─────────────────────────────────────────────────
 function renderCategory() {
   const container = el('categoryView');
+  if (!container) return;
+
   container.innerHTML = '';
   const cat     = CATEGORIES.find(c => c.id === currentCategoryId);
+  if (!cat) return;
+
   const items   = stockData[currentCategoryId] || [];
   const isAdmin = currentUser?.role === 'admin';
 
@@ -181,14 +185,6 @@ function renderCategory() {
         <button id="cancelNewItemBtn" class="btn-secondary">ยกเลิก</button>
       </div>`;
     container.appendChild(form);
-
-    el('showAddFormBtn').addEventListener('click', () => {
-      form.classList.toggle('hidden');
-      if (!form.classList.contains('hidden')) el('newItemName').focus();
-    });
-    el('saveNewItemBtn').addEventListener('click', saveNewItem);
-    el('cancelNewItemBtn').addEventListener('click', () => form.classList.add('hidden'));
-    el('newItemQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewItem(); });
   }
 
   if (items.length === 0) {
@@ -224,6 +220,40 @@ function renderCategory() {
       grid.appendChild(card);
     });
     container.appendChild(grid);
+  }
+
+  // Setup event listeners after DOM is updated
+  setTimeout(() => {
+    setupCategoryEventListeners();
+  }, 0);
+}
+
+function setupCategoryEventListeners() {
+  const isAdmin = currentUser?.role === 'admin';
+
+  if (isAdmin) {
+    const showAddFormBtn = el('showAddFormBtn');
+    const saveNewItemBtn = el('saveNewItemBtn');
+    const cancelNewItemBtn = el('cancelNewItemBtn');
+    const newItemQty = el('newItemQty');
+
+    if (showAddFormBtn) showAddFormBtn.addEventListener('click', () => {
+      const form = el('addItemForm');
+      if (form) {
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
+          const newItemName = el('newItemName');
+          if (newItemName) newItemName.focus();
+        }
+      }
+    });
+
+    if (saveNewItemBtn) saveNewItemBtn.addEventListener('click', saveNewItem);
+    if (cancelNewItemBtn) cancelNewItemBtn.addEventListener('click', () => {
+      const form = el('addItemForm');
+      if (form) form.classList.add('hidden');
+    });
+    if (newItemQty) newItemQty.addEventListener('keydown', e => { if (e.key === 'Enter') saveNewItem(); });
   }
 }
 
