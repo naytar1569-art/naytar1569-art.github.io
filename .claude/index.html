@@ -7,51 +7,58 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="LamthongBBQ Stock">
   <link rel="manifest" href="manifest.webmanifest">
-  <title>ระบบนับสต็อกร้าน</title>
+  <title>ระบบสต็อก LamthongBBQ</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="loginOverlay" class="overlay">
+    <div class="auth-card">
+      <h1>เข้าสู่ระบบ</h1>
+      <p>เข้าสู่ระบบเพื่อแยกสิทธิ์ผู้ดูแลระบบและพนักงาน</p>
+      <label>
+        อีเมล
+        <input id="loginEmail" type="email" placeholder="admin@bbq.com" autocomplete="username">
+      </label>
+      <label>
+        รหัสผ่าน
+        <input id="loginPassword" type="password" placeholder="admin123" autocomplete="current-password">
+      </label>
+      <div class="auth-actions">
+        <button id="loginBtn">เข้าสู่ระบบ</button>
+      </div>
+      <p class="auth-note">ตัวอย่างผู้ใช้: admin@bbq.com / admin123 หรือ staff@bbq.com / staff123</p>
+    </div>
+  </div>
+
   <header>
-    <h1>ระบบนับสต็อกร้าน</h1>
-    <p>แบ่งเป็น 4 หมวดหมู่ พร้อมเพิ่ม/ลบรายการและแก้ไขหน่วยได้</p>
+    <div>
+      <h1>ระบบสต็อก LamthongBBQ</h1>
+      <p id="loginStatus">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+    </div>
+    <div class="header-actions">
+      <button id="logoutBtn" class="secondary hidden">ออกจากระบบ</button>
+    </div>
   </header>
 
   <main>
+    <section class="top-tabs" id="categoryTabs"></section>
+
     <section class="overview">
       <div>
-        <strong>หมวดหมู่ทั้งหมด</strong>
-        <span id="categoryCount">0</span>
+        <strong>วันที่รายงาน</strong>
+        <input id="reportDate" type="date">
       </div>
       <div>
-        <strong>จำนวนรายการทั้งหมด</strong>
-        <span id="itemCount">0</span>
+        <strong>สิทธิ์ผู้ใช้</strong>
+        <span id="roleLabel">ยังไม่ได้เข้าสู่ระบบ</span>
+      </div>
+      <div class="save-group">
+        <button id="saveReportBtn">บันทึกรายงาน</button>
       </div>
     </section>
 
-    <section class="controls">
-      <button id="newCategoryBtn">สร้างหมวดหมู่ใหม่</button>
-    </section>
-
-    <section class="hint">
-      <p>เว็บนี้รองรับมือถือ ใช้งานง่าย และสามารถบันทึกข้อมูลในเครื่องได้ หากต้องการนำไปใช้จริง ให้โฮสต์บน GitHub Pages หรือ Netlify แล้วตั้งชื่อเป็น <strong>lamthongbbq.github.io</strong> หรือ <strong>lamthongbbq.netlify.app</strong>.</p>
-    </section>
-
-    <section id="categories"></section>
+    <section id="categoryView" class="category-view"></section>
   </main>
-
-  <div id="modal" class="modal hidden">
-    <div class="modal-content">
-      <h2 id="modalTitle">เพิ่มหมวดหมู่</h2>
-      <label>
-        ชื่อหมวดหมู่
-        <input id="categoryNameInput" type="text" placeholder="เช่น เครื่องดื่ม">
-      </label>
-      <div class="modal-actions">
-        <button id="saveCategoryBtn">บันทึก</button>
-        <button id="cancelBtn" class="secondary">ยกเลิก</button>
-      </div>
-    </div>
-  </div>
 
   <template id="categoryTemplate">
     <article class="category-card">
@@ -60,25 +67,22 @@
           <h2 class="category-title"></h2>
           <p class="category-summary"></p>
         </div>
-        <div class="category-actions">
-          <button class="addItemBtn">+ รายการ</button>
-          <button class="deleteCategoryBtn">ลบหมวด</button>
-        </div>
+        <button class="addItemBtn">+ เพิ่มรายการ</button>
       </header>
       <div class="items"></div>
       <div class="add-item-form hidden">
-        <label>
-          ชื่อรายการ
-          <input class="itemNameInput" type="text" placeholder="เช่น น้ำดื่ม">
-        </label>
-        <div class="row">
+        <div class="form-row">
           <label>
-            จำนวน
-            <input class="itemQtyInput" type="number" min="0" value="1">
+            ชื่อรายการ
+            <input class="itemNameInput" type="text" placeholder="เช่น น้ำดื่ม">
           </label>
           <label>
             หน่วย
             <input class="itemUnitInput" type="text" placeholder="เช่น ขวด">
+          </label>
+          <label>
+            จำนวนเริ่มต้น
+            <input class="itemQtyInput" type="number" min="0" value="1">
           </label>
         </div>
         <div class="modal-actions">
@@ -87,6 +91,26 @@
         </div>
       </div>
     </article>
+  </template>
+
+  <template id="itemTemplate">
+    <div class="item-card">
+      <div class="item-details">
+        <div>
+          <strong class="item-name"></strong>
+          <div class="item-unit"></div>
+        </div>
+        <div class="item-qty-wrapper">
+          <button class="qtyBtn dec">-</button>
+          <span class="item-qty"></span>
+          <button class="qtyBtn inc">+</button>
+        </div>
+      </div>
+      <div class="item-actions">
+        <button class="editItemBtn secondary">แก้ไข</button>
+        <button class="deleteItemBtn secondary">ลบ</button>
+      </div>
+    </div>
   </template>
 
   <script src="script.js"></script>
