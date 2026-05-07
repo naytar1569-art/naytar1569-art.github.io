@@ -7,3 +7,6 @@ Thumbs.db
 
 # Ignore node modules if any
 node_modules/
+
+# Ignore local Claude settings and secrets
+.claude/settings.local.json

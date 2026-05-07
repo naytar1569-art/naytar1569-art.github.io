@@ -71,11 +71,48 @@ body {
 
 .auth-note { color: var(--text-muted); font-size: 0.82rem; margin-top: 14px; }
 
-#gSignInBtn {
+.login-form {
   display: flex;
-  justify-content: center;
-  min-height: 44px;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+#passcodeInput {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg);
+  text-align: center;
+  letter-spacing: 2px;
+  transition: border-color 0.15s;
+}
+
+#passcodeInput:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: white;
+}
+
+#passcodeInput::placeholder { letter-spacing: 0; }
+
+.login-btn {
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 1rem;
+}
+
+.login-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 8px;
+  background: var(--danger-light);
+  border-radius: var(--radius-sm);
+  margin: 0;
 }
 
 .setup-notice {
@@ -536,23 +573,38 @@ main {
   flex-shrink: 0;
 }
 
-.add-staff-row {
+.passcode-list { display: flex; flex-direction: column; gap: 12px; }
+
+.passcode-item {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.add-staff-row input {
-  flex: 1;
-  border: 1.5px solid var(--border);
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg);
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  font-size: 0.93rem;
-  font-family: inherit;
-  color: var(--text);
+  border: 1px solid var(--border);
+  gap: 12px;
 }
 
-.add-staff-row input:focus { outline: none; border-color: var(--primary); }
+.passcode-role {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.passcode-code {
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1.5px solid var(--primary-border);
+  color: var(--primary);
+  user-select: all;
+  flex-shrink: 0;
+}
 
 /* ── Empty State ─────────────────────────────────────────── */
 .empty-state {

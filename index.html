@@ -19,24 +19,16 @@
       <div class="auth-logo">🍖</div>
       <h1>LamthongBBQ</h1>
       <p class="auth-subtitle">ระบบจัดการสต็อกสินค้า</p>
-      <div id="gSignInBtn"></div>
+      <div class="login-form">
+        <input id="passcodeInput" type="password" placeholder="กรอกรหัสผ่าน" autocomplete="current-password">
+        <button id="loginBtn" class="btn-primary login-btn">เข้าสู่ระบบ</button>
+        <p id="loginError" class="login-error hidden">รหัสผ่านไม่ถูกต้อง</p>
+      </div>
       <p class="auth-note">สำหรับผู้ที่ได้รับอนุญาตเท่านั้น</p>
     </div>
   </div>
 
-  <!-- Unauthorized Overlay -->
-  <div id="unauthorizedOverlay" class="overlay hidden">
-    <div class="auth-card">
-      <div class="auth-logo">🚫</div>
-      <h1>ไม่มีสิทธิ์เข้าถึง</h1>
-      <p class="auth-subtitle">อีเมลนี้ไม่ได้รับอนุญาตให้ใช้งาน</p>
-      <p id="unauthorizedEmail" class="auth-note"></p>
-      <p class="auth-note">ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์</p>
-      <button id="unauthorizedLogoutBtn" class="btn-secondary" style="margin-top:20px;width:100%">กลับไปหน้า Login</button>
-    </div>
-  </div>
-
-  <!-- Edit Item Modal -->
+  <!-- Edit Item Modal (Admin only) -->
   <div id="editModal" class="overlay hidden">
     <div class="modal-card">
       <h2>✏️ แก้ไขรายการ</h2>
@@ -52,22 +44,6 @@
     </div>
   </div>
 
-  <!-- Staff Management Modal -->
-  <div id="staffModal" class="overlay hidden">
-    <div class="modal-card">
-      <h2>👥 จัดการพนักงาน</h2>
-      <p class="modal-desc">เพิ่ม Gmail ของพนักงานเพื่อให้สามารถเข้าสู่ระบบได้</p>
-      <div id="staffList" class="staff-list"></div>
-      <div class="add-staff-row">
-        <input id="staffEmailInput" type="email" placeholder="staff@gmail.com">
-        <button id="addStaffBtn" class="btn-primary">+ เพิ่ม</button>
-      </div>
-      <div class="modal-actions">
-        <button id="closeStaffModal" class="btn-secondary">ปิด</button>
-      </div>
-    </div>
-  </div>
-
   <!-- App Header -->
   <header id="appHeader" class="hidden">
     <div class="header-brand">
@@ -78,7 +54,6 @@
       </div>
     </div>
     <div class="header-user">
-      <img id="userAvatar" class="avatar hidden" src="" alt="avatar">
       <div class="user-info">
         <strong id="userName"></strong>
         <span id="roleLabel" class="role-badge"></span>
@@ -87,11 +62,13 @@
     </div>
   </header>
 
+  <!-- Category Navigation -->
+  <nav id="categoryNav" class="category-nav hidden" aria-label="หมวดหมู่">
+    <div class="tabs-track" id="categoryTabs"></div>
+  </nav>
+
   <!-- App Content -->
   <div id="appContent" class="hidden">
-    <nav class="category-nav" aria-label="หมวดหมู่">
-      <div class="tabs-track" id="categoryTabs"></div>
-    </nav>
     <div class="overview-bar">
       <label class="date-label">
         <span>📅</span>
@@ -99,7 +76,6 @@
         <input id="reportDate" type="date" aria-label="วันที่รายงาน">
       </label>
       <div class="overview-actions">
-        <button id="manageStaffBtn" class="btn-outline admin-only hidden">👥 จัดการพนักงาน</button>
         <button id="saveReportBtn" class="save-btn">💾 บันทึกรายงาน</button>
       </div>
     </div>
@@ -108,7 +84,7 @@
 
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-  <script src="https://accounts.google.com/gsi/client" async onload="onGoogleLibLoaded()"></script>
   <script src="script.js"></script>
 </body>
+</html>
 </html>

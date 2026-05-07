@@ -2,14 +2,20 @@
 //  LamthongBBQ Stock Management System
 // ============================================================
 
-const GOOGLE_CLIENT_ID = '395886691537-a60irjuj5ck27c230lha0ns81rbjqu49.apps.googleusercontent.com';
-const ADMIN_EMAIL      = 'naytar1569@gmail.com';
+// รหัสผ่านระบบ
+const PASSWORDS = {
+  admin: 'admin123',      // ผู้ดูแลระบบ
+  staff1: 'staff123',     // พนักงาน 1
+  staff2: 'staff456'      // พนักงาน 2
+};
+
+const ADMIN_EMAIL = 'naytar1569@gmail.com'; // สำหรับส่งรายงาน
 
 const CATEGORIES = [
-  { id: 'meat',    name: 'เนื้อสัตว์' },
-  { id: 'veg',     name: 'ผัก' },
-  { id: 'kitchen', name: 'ของใช้ในครัว' },
-  { id: 'general', name: 'ของใช้ทั่วไป' },
+  { id: 'meat',    name: 'เนื้อสัตว์',    icon: '🥩' },
+  { id: 'veg',     name: 'ผัก',          icon: '🥕' },
+  { id: 'kitchen', name: 'ของใช้ในครัว', icon: '🍳' },
+  { id: 'general', name: 'ของใช้ทั่วไป', icon: '🛒' },
 ];
 
 // ── State ───────────────────────────────────────────────────────
@@ -17,7 +23,6 @@ let currentUser       = null;
 let currentCategoryId = CATEGORIES[0].id;
 let stockData         = {};
 let editingItemId     = null;
-let tokenClient       = null;
 
 // ── Helpers ─────────────────────────────────────────────────────
 const el = id => document.getElementById(id);
@@ -25,13 +30,6 @@ const el = id => document.getElementById(id);
 function escHtml(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function base64EncodeUTF8(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bin = '';
-  bytes.forEach(b => { bin += String.fromCharCode(b); });
-  return btoa(bin);
 }
 
 function showToast(msg, type = 'info', duration = 3500) {
@@ -47,7 +45,7 @@ function showToast(msg, type = 'info', duration = 3500) {
 // ── Storage ──────────────────────────────────────────────────────
 function loadStock() {
   try {
-    const raw = localStorage.getItem('bbqStock_v2');
+    const raw = localStorage.getItem('bbqStock_v3');
     if (raw) {
       const p = JSON.parse(raw);
       CATEGORIES.forEach(c => { stockData[c.id] = Array.isArray(p[c.id]) ? p[c.id] : []; });
@@ -57,37 +55,38 @@ function loadStock() {
   CATEGORIES.forEach(c => { stockData[c.id] = []; });
 }
 
-function saveStock() { localStorage.setItem('bbqStock_v2', JSON.stringify(stockData)); }
-
-function loadStaff()       { try { return JSON.parse(localStorage.getItem('bbqStaff') || '[]'); } catch { return []; } }
-function saveStaff(list)   { localStorage.setItem('bbqStaff', JSON.stringify(list)); }
+function saveStock() { localStorage.setItem('bbqStock_v3', JSON.stringify(stockData)); }
 
 // ── Auth & Roles ─────────────────────────────────────────────────
-function parseJwt(token) {
-  try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
-}
-
-function getRole(email) {
-  if (!email) return null;
-  if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return 'admin';
-  if (loadStaff().map(e => e.toLowerCase()).includes(email.toLowerCase())) return 'employee';
+function getRoleFromPassword(password) {
+  if (password === PASSWORDS.admin) return 'admin';
+  if (password === PASSWORDS.staff1 || password === PASSWORDS.staff2) return 'employee';
   return null;
 }
 
-function handleSignIn(credentialResponse) {
-  const payload = parseJwt(credentialResponse.credential);
-  if (!payload) { showToast('ไม่สามารถอ่านข้อมูลจาก Google ได้', 'error'); return; }
+function getUserNameFromPassword(password) {
+  if (password === PASSWORDS.admin) return 'ผู้ดูแลระบบ';
+  if (password === PASSWORDS.staff1) return 'พนักงาน 1';
+  if (password === PASSWORDS.staff2) return 'พนักงาน 2';
+  return null;
+}
 
-  const email = (payload.email || '').toLowerCase();
-  const role  = getRole(email);
-  if (!role) { showUnauthorized(email); return; }
+function handleLogin() {
+  const password = el('passcodeInput').value.trim();
+  const role = getRoleFromPassword(password);
+
+  if (!role) {
+    el('loginError').classList.remove('hidden');
+    el('passcodeInput').focus();
+    return;
+  }
 
   currentUser = {
-    email,
-    name:    payload.name    || email,
-    picture: payload.picture || '',
-    role,
+    name: getUserNameFromPassword(password),
+    role: role,
+    password: password
   };
+
   sessionStorage.setItem('bbqUser', JSON.stringify(currentUser));
   showApp();
 }
@@ -95,9 +94,323 @@ function handleSignIn(credentialResponse) {
 function logout() {
   currentUser = null;
   sessionStorage.removeItem('bbqUser');
-  google.accounts.id.disableAutoSelect();
   showLogin();
 }
+
+// ── UI State ─────────────────────────────────────────────────────
+function showLogin() {
+  el('loginOverlay').classList.remove('hidden');
+  el('appHeader').classList.add('hidden');
+  el('categoryNav').classList.add('hidden');
+  el('appContent').classList.add('hidden');
+}
+
+function showApp() {
+  el('loginOverlay').classList.add('hidden');
+  el('appHeader').classList.remove('hidden');
+  el('categoryNav').classList.remove('hidden');
+  el('appContent').classList.remove('hidden');
+
+  el('userName').textContent = currentUser.name;
+  const badge = el('roleLabel');
+  badge.textContent = currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
+  badge.className   = `role-badge ${currentUser.role}`;
+
+  // ตั้งค่าวันที่เป็นวันปัจจุบัน
+  const today = new Date().toISOString().split('T')[0];
+  el('reportDate').value = today;
+
+  renderTabs();
+  renderCategory();
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────
+function renderTabs() {
+  const track = el('categoryTabs');
+  track.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const count = (stockData[cat.id] || []).length;
+    const btn   = document.createElement('button');
+    btn.type      = 'button';
+    btn.className = 'tab-btn' + (cat.id === currentCategoryId ? ' active' : '');
+    btn.innerHTML = `<span class="tab-icon">${cat.icon}</span><span class="tab-name">${escHtml(cat.name)}</span><span class="tab-count">${count}</span>`;
+    btn.addEventListener('click', () => { currentCategoryId = cat.id; renderTabs(); renderCategory(); });
+    track.appendChild(btn);
+  });
+}
+
+// ── Category View ─────────────────────────────────────────────────
+function renderCategory() {
+  const container = el('categoryView');
+  container.innerHTML = '';
+  const cat     = CATEGORIES.find(c => c.id === currentCategoryId);
+  const items   = stockData[currentCategoryId] || [];
+  const isAdmin = currentUser?.role === 'admin';
+
+  const header = document.createElement('div');
+  header.className = 'cat-header';
+  header.innerHTML = `
+    <div>
+      <h2 class="cat-title">${cat.icon} ${escHtml(cat.name)}</h2>
+      <p class="cat-count">${items.length} รายการ</p>
+    </div>
+    ${isAdmin ? `<button class="add-item-btn" id="showAddFormBtn">+ เพิ่มรายการ</button>` : ''}
+  `;
+  container.appendChild(header);
+
+  if (isAdmin) {
+    const form = document.createElement('div');
+    form.id = 'addItemForm';
+    form.className = 'add-item-form hidden';
+    form.innerHTML = `
+      <div class="form-row">
+        <label>ชื่อสินค้า<input id="newItemName" type="text" placeholder="เช่น หมูสามชั้น"></label>
+        <label>หน่วย<input id="newItemUnit" type="text" placeholder="เช่น กก."></label>
+        <label>จำนวนเริ่มต้น<input id="newItemQty" type="number" min="0" step="1" value="0"></label>
+      </div>
+      <div class="form-actions">
+        <button id="saveNewItemBtn" class="btn-primary">บันทึก</button>
+        <button id="cancelNewItemBtn" class="btn-secondary">ยกเลิก</button>
+      </div>`;
+    container.appendChild(form);
+
+    el('showAddFormBtn').addEventListener('click', () => {
+      form.classList.toggle('hidden');
+      if (!form.classList.contains('hidden')) el('newItemName').focus();
+    });
+    el('saveNewItemBtn').addEventListener('click', saveNewItem);
+    el('cancelNewItemBtn').addEventListener('click', () => form.classList.add('hidden'));
+    el('newItemQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewItem(); });
+  }
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = `
+      <div class="empty-icon">${cat.icon}</div>
+      <p>ยังไม่มีรายการในหมวดหมู่นี้</p>
+      ${isAdmin ? '<p>กดปุ่ม "เพิ่มรายการ" เพื่อเริ่มต้น</p>' : ''}
+    `;
+    container.appendChild(empty);
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'items-grid';
+    items.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'item-card';
+      card.innerHTML = `
+        <div class="item-header">
+          <h3 class="item-name">${escHtml(item.name)}</h3>
+          ${isAdmin ? `<button class="item-edit-btn" data-id="${item.id}">✏️</button>` : ''}
+        </div>
+        <div class="item-controls">
+          <button class="qty-btn minus-btn" data-id="${item.id}" data-action="dec">-</button>
+          <div class="qty-display">
+            <span class="qty-value">${item.qty}</span>
+            <span class="qty-unit">${escHtml(item.unit)}</span>
+          </div>
+          <button class="qty-btn plus-btn" data-id="${item.id}" data-action="inc">+</button>
+        </div>
+        ${isAdmin ? `<button class="item-delete-btn" data-id="${item.id}">🗑️ ลบ</button>` : ''}
+      `;
+      grid.appendChild(card);
+    });
+    container.appendChild(grid);
+  }
+}
+
+// ── Item Management ──────────────────────────────────────────────
+function saveNewItem() {
+  const name = el('newItemName').value.trim();
+  const unit = el('newItemUnit').value.trim();
+  const qty  = parseInt(el('newItemQty').value) || 0;
+
+  if (!name || !unit) {
+    showToast('กรุณากรอกชื่อสินค้าและหน่วย', 'error');
+    return;
+  }
+
+  const newItem = {
+    id: Date.now().toString(),
+    name,
+    unit,
+    qty
+  };
+
+  stockData[currentCategoryId].push(newItem);
+  saveStock();
+
+  el('newItemName').value = '';
+  el('newItemUnit').value = '';
+  el('newItemQty').value = '0';
+  el('addItemForm').classList.add('hidden');
+
+  renderTabs();
+  renderCategory();
+  showToast('เพิ่มรายการสำเร็จ', 'success');
+}
+
+function updateItemQty(itemId, delta) {
+  const items = stockData[currentCategoryId];
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+
+  item.qty = Math.max(0, item.qty + delta);
+  saveStock();
+  renderCategory();
+}
+
+function deleteItem(itemId) {
+  if (!confirm('ต้องการลบรายการนี้หรือไม่?')) return;
+
+  stockData[currentCategoryId] = stockData[currentCategoryId].filter(i => i.id !== itemId);
+  saveStock();
+  renderTabs();
+  renderCategory();
+  showToast('ลบรายการสำเร็จ', 'success');
+}
+
+function editItem(itemId) {
+  const items = stockData[currentCategoryId];
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+
+  editingItemId = itemId;
+  el('editName').value = item.name;
+  el('editUnit').value = item.unit;
+  el('editQty').value = item.qty;
+  el('editModal').classList.remove('hidden');
+  el('editName').focus();
+}
+
+function saveEditItem() {
+  const name = el('editName').value.trim();
+  const unit = el('editUnit').value.trim();
+  const qty  = parseInt(el('editQty').value) || 0;
+
+  if (!name || !unit) {
+    showToast('กรุณากรอกชื่อสินค้าและหน่วย', 'error');
+    return;
+  }
+
+  const items = stockData[currentCategoryId];
+  const item = items.find(i => i.id === editingItemId);
+  if (item) {
+    item.name = name;
+    item.unit = unit;
+    item.qty = qty;
+    saveStock();
+    renderCategory();
+    showToast('แก้ไขรายการสำเร็จ', 'success');
+  }
+
+  el('editModal').classList.add('hidden');
+  editingItemId = null;
+}
+
+// ── Report Generation ────────────────────────────────────────────
+function generateExcelReport() {
+  const reportDate = el('reportDate').value;
+  if (!reportDate) {
+    showToast('กรุณาเลือกวันที่รายงาน', 'error');
+    return;
+  }
+
+  const workbook = XLSX.utils.book_new();
+
+  CATEGORIES.forEach(cat => {
+    const items = stockData[cat.id] || [];
+    if (items.length === 0) return;
+
+    const data = [
+      ['รายงานสต็อกสินค้า - ' + cat.name],
+      ['วันที่:', reportDate],
+      [''],
+      ['ชื่อสินค้า', 'จำนวน', 'หน่วย']
+    ];
+
+    items.forEach(item => {
+      data.push([item.name, item.qty, item.unit]);
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(workbook, worksheet, cat.name);
+  });
+
+  const filename = `LamthongBBQ_Stock_${reportDate}.xlsx`;
+  XLSX.writeFile(workbook, filename);
+
+  showToast('ดาวน์โหลดรายงานสำเร็จ', 'success');
+}
+
+// ── Event Listeners ──────────────────────────────────────────────
+function setupEventListeners() {
+  // Login
+  el('loginBtn').addEventListener('click', handleLogin);
+  el('passcodeInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleLogin();
+  });
+
+  // Logout
+  el('logoutBtn').addEventListener('click', logout);
+
+  // Report
+  el('saveReportBtn').addEventListener('click', generateExcelReport);
+
+  // Edit Modal
+  el('saveEditBtn').addEventListener('click', saveEditItem);
+  el('cancelEditBtn').addEventListener('click', () => {
+    el('editModal').classList.add('hidden');
+    editingItemId = null;
+  });
+
+  // Dynamic events for items
+  document.addEventListener('click', e => {
+    const target = e.target;
+
+    if (target.classList.contains('qty-btn')) {
+      const itemId = target.dataset.id;
+      const action = target.dataset.action;
+      const delta = action === 'inc' ? 1 : -1;
+      updateItemQty(itemId, delta);
+    }
+
+    if (target.classList.contains('item-edit-btn')) {
+      const itemId = target.dataset.id;
+      editItem(itemId);
+    }
+
+    if (target.classList.contains('item-delete-btn')) {
+      const itemId = target.dataset.id;
+      deleteItem(itemId);
+    }
+  });
+}
+
+// ── Initialization ───────────────────────────────────────────────
+function init() {
+  // Load saved user session
+  try {
+    const saved = sessionStorage.getItem('bbqUser');
+    if (saved) {
+      currentUser = JSON.parse(saved);
+      const role = getRoleFromPassword(currentUser.password);
+      if (role) {
+        showApp();
+        return;
+      }
+    }
+  } catch { /* ignore */ }
+
+  loadStock();
+  showLogin();
+}
+
+// Start the app
+document.addEventListener('DOMContentLoaded', () => {
+  setupEventListeners();
+  init();
+});
 
 // ── UI State ─────────────────────────────────────────────────────
 function showLogin() {

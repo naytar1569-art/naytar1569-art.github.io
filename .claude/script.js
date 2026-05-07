@@ -2,8 +2,13 @@
 //  LamthongBBQ Stock Management System
 // ============================================================
 
-const GOOGLE_CLIENT_ID = '395886691537-a60irjuj5ck27c230lha0ns81rbjqu49.apps.googleusercontent.com';
-const ADMIN_EMAIL      = 'naytar1569@gmail.com';
+const ADMIN_EMAIL = 'naytar1569@gmail.com';
+
+const USERS = {
+  'Admin@2025': { name: 'เจ้าของร้าน',    role: 'admin' },
+  'Staff@01':   { name: 'พนักงานคนที่ 1', role: 'employee' },
+  'Staff@02':   { name: 'พนักงานคนที่ 2', role: 'employee' },
+};
 
 const CATEGORIES = [
   { id: 'meat',    name: 'เนื้อสัตว์' },
@@ -17,7 +22,6 @@ let currentUser       = null;
 let currentCategoryId = CATEGORIES[0].id;
 let stockData         = {};
 let editingItemId     = null;
-let tokenClient       = null;
 
 // ── Helpers ─────────────────────────────────────────────────────
 const el = id => document.getElementById(id);
@@ -25,13 +29,6 @@ const el = id => document.getElementById(id);
 function escHtml(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function base64EncodeUTF8(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bin = '';
-  bytes.forEach(b => { bin += String.fromCharCode(b); });
-  return btoa(bin);
 }
 
 function showToast(msg, type = 'info', duration = 3500) {
@@ -59,35 +56,20 @@ function loadStock() {
 
 function saveStock() { localStorage.setItem('bbqStock_v2', JSON.stringify(stockData)); }
 
-function loadStaff()       { try { return JSON.parse(localStorage.getItem('bbqStaff') || '[]'); } catch { return []; } }
-function saveStaff(list)   { localStorage.setItem('bbqStaff', JSON.stringify(list)); }
-
-// ── Auth & Roles ─────────────────────────────────────────────────
-function parseJwt(token) {
-  try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
-}
-
-function getRole(email) {
-  if (!email) return null;
-  if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return 'admin';
-  if (loadStaff().map(e => e.toLowerCase()).includes(email.toLowerCase())) return 'employee';
-  return null;
-}
-
-function handleSignIn(credentialResponse) {
-  const payload = parseJwt(credentialResponse.credential);
-  if (!payload) { showToast('ไม่สามารถอ่านข้อมูลจาก Google ได้', 'error'); return; }
-
-  const email = (payload.email || '').toLowerCase();
-  const role  = getRole(email);
-  if (!role) { showUnauthorized(email); return; }
-
-  currentUser = {
-    email,
-    name:    payload.name    || email,
-    picture: payload.picture || '',
-    role,
-  };
+// ── Auth ─────────────────────────────────────────────────────────
+function handleLogin() {
+  const code = el('passcodeInput').value;
+  const user = USERS[code];
+  if (!user) {
+    const errEl = el('loginError');
+    errEl.textContent = 'รหัสผ่านไม่ถูกต้อง';
+    errEl.classList.remove('hidden');
+    el('passcodeInput').value = '';
+    el('passcodeInput').focus();
+    return;
+  }
+  el('loginError').classList.add('hidden');
+  currentUser = { name: user.name, role: user.role };
   sessionStorage.setItem('bbqUser', JSON.stringify(currentUser));
   showApp();
 }
@@ -95,36 +77,23 @@ function handleSignIn(credentialResponse) {
 function logout() {
   currentUser = null;
   sessionStorage.removeItem('bbqUser');
-  google.accounts.id.disableAutoSelect();
+  el('passcodeInput').value = '';
   showLogin();
 }
 
 // ── UI State ─────────────────────────────────────────────────────
 function showLogin() {
   el('loginOverlay').classList.remove('hidden');
-  el('unauthorizedOverlay').classList.add('hidden');
   el('appHeader').classList.add('hidden');
   el('appContent').classList.add('hidden');
-}
-
-function showUnauthorized(email) {
-  el('loginOverlay').classList.add('hidden');
-  el('unauthorizedOverlay').classList.remove('hidden');
-  el('appHeader').classList.add('hidden');
-  el('appContent').classList.add('hidden');
-  el('unauthorizedEmail').textContent = `อีเมล: ${email}`;
 }
 
 function showApp() {
   el('loginOverlay').classList.add('hidden');
-  el('unauthorizedOverlay').classList.add('hidden');
   el('appHeader').classList.remove('hidden');
   el('appContent').classList.remove('hidden');
 
-  const avatar = el('userAvatar');
-  if (currentUser.picture) { avatar.src = currentUser.picture; avatar.classList.remove('hidden'); }
-  else avatar.classList.add('hidden');
-
+  el('userAvatar').classList.add('hidden');
   el('userName').textContent = currentUser.name;
   const badge = el('roleLabel');
   badge.textContent = currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
@@ -297,43 +266,27 @@ function saveEdit() {
   renderTabs(); renderCategory();
 }
 
-// ── Staff Management ──────────────────────────────────────────────
+// ── Passcode Modal (admin) ────────────────────────────────────────
 function renderStaffModal() {
-  const list  = el('staffList');
-  const staff = loadStaff();
-  list.innerHTML = '';
-  if (staff.length === 0) {
-    list.innerHTML = '<p style="color:var(--text-muted);font-size:.88rem;padding:8px 0">ยังไม่มีพนักงาน</p>';
-    return;
-  }
-  staff.forEach(email => {
-    const row = document.createElement('div');
-    row.className = 'staff-row';
-    row.innerHTML = `<span>${escHtml(email)}</span>
-      <button class="remove-staff" title="ลบ">✕</button>`;
-    row.querySelector('.remove-staff').addEventListener('click', () => {
-      saveStaff(loadStaff().filter(e => e !== email));
-      renderStaffModal();
-      showToast(`ลบ ${email} แล้ว`, 'info');
-    });
-    list.appendChild(row);
-  });
+  el('staffList').innerHTML = `
+    <div class="passcode-list">
+      <div class="passcode-item">
+        <span class="passcode-role">เจ้าของร้าน</span>
+        <code class="passcode-code">Admin@2025</code>
+      </div>
+      <div class="passcode-item">
+        <span class="passcode-role">พนักงานคนที่ 1</span>
+        <code class="passcode-code">Staff@01</code>
+      </div>
+      <div class="passcode-item">
+        <span class="passcode-role">พนักงานคนที่ 2</span>
+        <code class="passcode-code">Staff@02</code>
+      </div>
+    </div>
+  `;
 }
 
-function addStaff() {
-  const email = el('staffEmailInput').value.trim().toLowerCase();
-  if (!email || !email.includes('@')) { showToast('กรุณากรอกอีเมลที่ถูกต้อง', 'error'); return; }
-  if (email === ADMIN_EMAIL.toLowerCase()) { showToast('อีเมลนี้เป็น admin อยู่แล้ว', 'error'); return; }
-  const staff = loadStaff();
-  if (staff.map(e => e.toLowerCase()).includes(email)) { showToast('อีเมลนี้มีอยู่แล้ว', 'error'); return; }
-  staff.push(email);
-  saveStaff(staff);
-  el('staffEmailInput').value = '';
-  renderStaffModal();
-  showToast(`เพิ่ม ${email} แล้ว`, 'success');
-}
-
-// ── Report & Gmail API ────────────────────────────────────────────
+// ── Report ────────────────────────────────────────────────────────
 function generateExcel(date) {
   const rows = [['วันที่','หมวดหมู่','ชื่อสินค้า','จำนวน','หน่วย']];
   CATEGORIES.forEach(cat => {
@@ -348,162 +301,54 @@ function generateExcel(date) {
   return XLSX.write(wb, { type:'base64', bookType:'xlsx' });
 }
 
-function buildMimeEmail({ to, subject, bodyText, filename, fileBase64 }) {
-  const boundary = `LBBQ_${Date.now()}`;
-  const mime = [
-    `To: ${to}`,
-    `Subject: =?utf-8?B?${base64EncodeUTF8(subject)}?=`,
-    'MIME-Version: 1.0',
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    base64EncodeUTF8(bodyText),
-    '',
-    `--${boundary}`,
-    'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'Content-Transfer-Encoding: base64',
-    `Content-Disposition: attachment; filename="${filename}"`,
-    '',
-    fileBase64,
-    '',
-    `--${boundary}--`,
-  ].join('\r\n');
-  return btoa(mime).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-
-async function sendViaGmail(accessToken, date) {
-  const xlsxB64  = generateExcel(date);
-  const filename = `stock-report-${date}.xlsx`;
-  const bodyText = [
-    `รายงานสต็อกประจำวัน: ${date}`,
-    `ผู้ส่ง: ${currentUser.name} (${currentUser.email})`,
-    '',
-    ...CATEGORIES.map(c => {
-      const items = stockData[c.id] || [];
-      return `  ${c.name}: ${items.length} รายการ (รวม ${items.reduce((s,i)=>s+i.qty,0)})`;
-    }),
-    '', 'ดูรายละเอียดในไฟล์แนบ',
-  ].join('\n');
-
-  const raw = buildMimeEmail({
-    to: ADMIN_EMAIL,
-    subject: `รายงานสต็อก LamthongBBQ วันที่ ${date}`,
-    bodyText, filename, fileBase64: xlsxB64,
-  });
-
-  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method:  'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ raw }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${res.status}`);
-  }
-}
-
-function handleSaveReport() {
+async function handleSaveReport() {
   if (!currentUser) return;
   const date = el('reportDate').value;
   if (!date) { showToast('กรุณาเลือกวันที่รายงาน', 'error'); return; }
 
-  // Admin → download Excel
+  const b64      = generateExcel(date);
+  const filename = `stock-report-${date}.xlsx`;
+  const wb       = XLSX.read(b64, { type: 'base64' });
+  XLSX.writeFile(wb, filename);
+
   if (currentUser.role === 'admin') {
-    const b64 = generateExcel(date);
-    const wb  = XLSX.read(b64, { type:'base64' });
-    XLSX.writeFile(wb, `stock-report-${date}.xlsx`);
     showToast(`ดาวน์โหลดรายงาน ${date} เรียบร้อย`, 'success');
     return;
   }
 
-  // Staff → send via Gmail API
-  setSaving(true);
-  tokenClient.callback = async tokenResponse => {
-    if (tokenResponse.error) {
-      showToast(`ไม่สามารถขอสิทธิ์ Gmail ได้: ${tokenResponse.error}`, 'error');
-      setSaving(false);
-      return;
-    }
+  // Staff: build summary text
+  const summaryText = [
+    `รายงานสต็อก LamthongBBQ วันที่ ${date}`,
+    `ผู้ส่ง: ${currentUser.name}`,
+    '',
+    ...CATEGORIES.map(c => {
+      const items = stockData[c.id] || [];
+      return `${c.name}: ${items.length} รายการ`;
+    }),
+  ].join('\n');
+
+  // Try Web Share API (mobile Chrome/Safari supports file sharing)
+  if (navigator.share) {
     try {
-      await sendViaGmail(tokenResponse.access_token, date);
-      showToast(`✅ ส่งรายงาน ${date} ไปที่ ${ADMIN_EMAIL} เรียบร้อย`, 'success', 5000);
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const file  = new File([bytes], filename, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `รายงานสต็อก ${date}`, text: summaryText });
+        showToast('แชร์รายงานเรียบร้อย', 'success');
+        return;
+      }
     } catch (e) {
-      showToast(`เกิดข้อผิดพลาด: ${e.message}`, 'error');
-    } finally {
-      setSaving(false);
+      if (e.name === 'AbortError') return;
     }
-  };
-  tokenClient.requestAccessToken({ prompt: '' });
-}
-
-function setSaving(on) {
-  const btn = el('saveReportBtn');
-  btn.disabled    = on;
-  btn.textContent = on ? '⏳ กำลังส่ง...' : '💾 บันทึกรายงาน';
-}
-
-// ── Google Identity Services ──────────────────────────────────────
-window.onGoogleLibLoaded = function () {
-  google.accounts.id.initialize({
-    client_id:             GOOGLE_CLIENT_ID,
-    callback:              handleSignIn,
-    auto_select:           false,
-    cancel_on_tap_outside: false,
-    error_callback:        handleGisError,
-    use_fedcm_for_prompt:  false,
-  });
-
-  google.accounts.id.renderButton(el('gSignInBtn'), {
-    type:   'standard',
-    theme:  'outline',
-    size:   'large',
-    text:   'signin_with',
-    locale: 'th',
-    width:  280,
-  });
-
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope:     'https://www.googleapis.com/auth/gmail.send',
-    callback:  () => {},
-    error_callback: e => showToast(`Gmail: ${e.type} — ${e.message || ''}`, 'error'),
-  });
-
-  // Fallback: if button didn't render after 3s, show manual link
-  setTimeout(() => {
-    const btn = el('gSignInBtn');
-    if (btn && !btn.querySelector('iframe,div[role]')) {
-      btn.innerHTML = `<a href="https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(location.origin)}&response_type=token&scope=email+profile+openid" class="google-fallback-link">Sign in with Google ↗</a>`;
-      showLoginError('ปุ่ม Google ไม่โหลด — กรุณาตรวจสอบว่าเพิ่ม ' + location.origin + ' ใน Authorized origins แล้ว');
-    }
-  }, 3000);
-};
-
-function handleGisError(error) {
-  console.error('GIS error:', error);
-  const msg = {
-    'idpiframe_initialization_failed': 'เบราว์เซอร์บล็อก cookies — ลองปิด adblocker หรือเปลี่ยน browser',
-    'popup_closed_by_user':            'ปิด popup ไปแล้ว — กรุณาลองใหม่',
-    'popup_blocked_by_browser':        'Browser บล็อก popup — อนุญาต popup สำหรับเว็บนี้',
-    'origin_mismatch':                 'Origin ไม่ตรง — กรุณาเพิ่ม ' + location.origin + ' ใน GCP Authorized origins',
-    'access_denied':                   'ถูก deny — ตรวจสอบ OAuth consent screen และ test users',
-  }[error.type] || `${error.type}: ${error.message || ''}`;
-  showLoginError(msg);
-}
-
-function showLoginError(msg) {
-  let errEl = el('loginError');
-  if (!errEl) {
-    errEl = document.createElement('p');
-    errEl.id = 'loginError';
-    errEl.style.cssText = 'color:#dc2626;font-size:.82rem;margin-top:12px;line-height:1.5;background:#fee2e2;padding:10px;border-radius:8px;text-align:left';
-    el('gSignInBtn').after(errEl);
   }
-  errEl.textContent = '⚠️ ' + msg;
+
+  // Fallback: open mailto
+  const subject = encodeURIComponent(`รายงานสต็อก LamthongBBQ วันที่ ${date}`);
+  const body    = encodeURIComponent(summaryText + '\n\n(ดูรายละเอียดในไฟล์ Excel ที่ดาวน์โหลด)');
+  window.open(`mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`, '_blank');
+  showToast('ดาวน์โหลดไฟล์แล้ว — กรุณาแนบไฟล์ในอีเมลที่เปิด', 'info', 6000);
 }
 
 // ── Init ──────────────────────────────────────────────────────────
@@ -514,30 +359,43 @@ function init() {
   // Restore session
   try {
     const saved = JSON.parse(sessionStorage.getItem('bbqUser') || 'null');
-    if (saved?.email && getRole(saved.email)) { currentUser = saved; showApp(); }
-    else showLogin();
+    if (saved?.name && saved?.role && ['admin','employee'].includes(saved.role)) {
+      currentUser = saved;
+      showApp();
+    } else {
+      showLogin();
+    }
   } catch { showLogin(); }
 
-  // Event listeners
+  // Login
+  el('loginBtn').addEventListener('click', handleLogin);
+  el('passcodeInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+
+  // App controls
   el('logoutBtn').addEventListener('click', logout);
-  el('unauthorizedLogoutBtn').addEventListener('click', () => {
-    google.accounts.id.disableAutoSelect(); showLogin();
-  });
   el('saveReportBtn').addEventListener('click', handleSaveReport);
 
+  // Edit modal
   el('saveEditBtn').addEventListener('click', saveEdit);
   el('cancelEditBtn').addEventListener('click', closeEditModal);
   el('editModal').addEventListener('click', e => { if (e.target === el('editModal')) closeEditModal(); });
   el('editQty').addEventListener('keydown', e => { if (e.key === 'Enter') saveEdit(); });
 
-  el('manageStaffBtn').addEventListener('click', () => { el('staffModal').classList.remove('hidden'); renderStaffModal(); });
+  // Passcode modal (admin)
+  el('manageStaffBtn').addEventListener('click', () => {
+    el('staffModal').classList.remove('hidden');
+    renderStaffModal();
+  });
   el('closeStaffModal').addEventListener('click', () => el('staffModal').classList.add('hidden'));
-  el('staffModal').addEventListener('click', e => { if (e.target === el('staffModal')) el('staffModal').classList.add('hidden'); });
-  el('addStaffBtn').addEventListener('click', addStaff);
-  el('staffEmailInput').addEventListener('keydown', e => { if (e.key === 'Enter') addStaff(); });
+  el('staffModal').addEventListener('click', e => {
+    if (e.target === el('staffModal')) el('staffModal').classList.add('hidden');
+  });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeEditModal(); el('staffModal').classList.add('hidden'); }
+    if (e.key === 'Escape') {
+      closeEditModal();
+      el('staffModal').classList.add('hidden');
+    }
   });
 }
 

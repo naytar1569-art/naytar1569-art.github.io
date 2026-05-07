@@ -19,20 +19,12 @@
       <div class="auth-logo">🍖</div>
       <h1>LamthongBBQ</h1>
       <p class="auth-subtitle">ระบบจัดการสต็อกสินค้า</p>
-      <div id="gSignInBtn"></div>
+      <div class="login-form">
+        <input id="passcodeInput" type="password" placeholder="กรอกรหัสผ่าน" autocomplete="current-password">
+        <button id="loginBtn" class="btn-primary login-btn">เข้าสู่ระบบ</button>
+        <p id="loginError" class="login-error hidden">รหัสผ่านไม่ถูกต้อง</p>
+      </div>
       <p class="auth-note">สำหรับผู้ที่ได้รับอนุญาตเท่านั้น</p>
-    </div>
-  </div>
-
-  <!-- Unauthorized Overlay -->
-  <div id="unauthorizedOverlay" class="overlay hidden">
-    <div class="auth-card">
-      <div class="auth-logo">🚫</div>
-      <h1>ไม่มีสิทธิ์เข้าถึง</h1>
-      <p class="auth-subtitle">อีเมลนี้ไม่ได้รับอนุญาตให้ใช้งาน</p>
-      <p id="unauthorizedEmail" class="auth-note"></p>
-      <p class="auth-note">ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์</p>
-      <button id="unauthorizedLogoutBtn" class="btn-secondary" style="margin-top:20px;width:100%">กลับไปหน้า Login</button>
     </div>
   </div>
 
@@ -52,16 +44,12 @@
     </div>
   </div>
 
-  <!-- Staff Management Modal -->
+  <!-- Passcode Modal (admin only) -->
   <div id="staffModal" class="overlay hidden">
     <div class="modal-card">
-      <h2>👥 จัดการพนักงาน</h2>
-      <p class="modal-desc">เพิ่ม Gmail ของพนักงานเพื่อให้สามารถเข้าสู่ระบบได้</p>
+      <h2>🔑 รหัสผ่านพนักงาน</h2>
+      <p class="modal-desc">รหัสสำหรับเข้าสู่ระบบของแต่ละคน</p>
       <div id="staffList" class="staff-list"></div>
-      <div class="add-staff-row">
-        <input id="staffEmailInput" type="email" placeholder="staff@gmail.com">
-        <button id="addStaffBtn" class="btn-primary">+ เพิ่ม</button>
-      </div>
       <div class="modal-actions">
         <button id="closeStaffModal" class="btn-secondary">ปิด</button>
       </div>
@@ -99,7 +87,7 @@
         <input id="reportDate" type="date" aria-label="วันที่รายงาน">
       </label>
       <div class="overview-actions">
-        <button id="manageStaffBtn" class="btn-outline admin-only hidden">👥 จัดการพนักงาน</button>
+        <button id="manageStaffBtn" class="btn-outline admin-only hidden">🔑 รหัสผ่าน</button>
         <button id="saveReportBtn" class="save-btn">💾 บันทึกรายงาน</button>
       </div>
     </div>
@@ -108,7 +96,6 @@
 
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
-  <script src="https://accounts.google.com/gsi/client" async onload="onGoogleLibLoaded()"></script>
   <script src="script.js"></script>
 </body>
 </html>
