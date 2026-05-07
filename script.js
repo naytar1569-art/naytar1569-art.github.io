@@ -453,6 +453,8 @@ window.onGoogleLibLoaded = function () {
     callback:              handleSignIn,
     auto_select:           false,
     cancel_on_tap_outside: false,
+    error_callback:        handleGisError,
+    use_fedcm_for_prompt:  false,
   });
 
   google.accounts.id.renderButton(el('gSignInBtn'), {
@@ -468,8 +470,41 @@ window.onGoogleLibLoaded = function () {
     client_id: GOOGLE_CLIENT_ID,
     scope:     'https://www.googleapis.com/auth/gmail.send',
     callback:  () => {},
+    error_callback: e => showToast(`Gmail: ${e.type} — ${e.message || ''}`, 'error'),
   });
+
+  // Fallback: if button didn't render after 3s, show manual link
+  setTimeout(() => {
+    const btn = el('gSignInBtn');
+    if (btn && !btn.querySelector('iframe,div[role]')) {
+      btn.innerHTML = `<a href="https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(location.origin)}&response_type=token&scope=email+profile+openid" class="google-fallback-link">Sign in with Google ↗</a>`;
+      showLoginError('ปุ่ม Google ไม่โหลด — กรุณาตรวจสอบว่าเพิ่ม ' + location.origin + ' ใน Authorized origins แล้ว');
+    }
+  }, 3000);
 };
+
+function handleGisError(error) {
+  console.error('GIS error:', error);
+  const msg = {
+    'idpiframe_initialization_failed': 'เบราว์เซอร์บล็อก cookies — ลองปิด adblocker หรือเปลี่ยน browser',
+    'popup_closed_by_user':            'ปิด popup ไปแล้ว — กรุณาลองใหม่',
+    'popup_blocked_by_browser':        'Browser บล็อก popup — อนุญาต popup สำหรับเว็บนี้',
+    'origin_mismatch':                 'Origin ไม่ตรง — กรุณาเพิ่ม ' + location.origin + ' ใน GCP Authorized origins',
+    'access_denied':                   'ถูก deny — ตรวจสอบ OAuth consent screen และ test users',
+  }[error.type] || `${error.type}: ${error.message || ''}`;
+  showLoginError(msg);
+}
+
+function showLoginError(msg) {
+  let errEl = el('loginError');
+  if (!errEl) {
+    errEl = document.createElement('p');
+    errEl.id = 'loginError';
+    errEl.style.cssText = 'color:#dc2626;font-size:.82rem;margin-top:12px;line-height:1.5;background:#fee2e2;padding:10px;border-radius:8px;text-align:left';
+    el('gSignInBtn').after(errEl);
+  }
+  errEl.textContent = '⚠️ ' + msg;
+}
 
 // ── Init ──────────────────────────────────────────────────────────
 function init() {
